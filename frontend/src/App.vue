@@ -4,17 +4,28 @@ import {
   NLayout, NLayoutHeader, NLayoutSider, NLayoutContent,
   NMenu, NIcon, NConfigProvider, zhCN, dateZhCN,
   NDialogProvider, NMessageProvider,
-  NTag, NSpace, NButton, NSwitch
+  NTag, NSpace, NButton, NSwitch,
+  darkTheme
 } from 'naive-ui'
 import { computed, h, ref, onMounted, onUnmounted, type Component } from 'vue'
 import {
   ChatboxOutline, SettingsOutline, GridOutline,
   PulseOutline, HardwareChipOutline,
-  ChevronBackOutline, ChevronForwardOutline
+  ChevronBackOutline, ChevronForwardOutline,
+  SunnyOutline, MoonOutline
 } from '@vicons/ionicons5'
 
 const route = useRoute()
 const collapsed = ref(false)
+
+// 暗黑模式（默认开启）
+const isDark = ref(true)
+const theme = computed(() => isDark.value ? darkTheme : null)
+
+function toggleTheme() {
+  isDark.value = !isDark.value
+  localStorage.setItem('arugo-theme', isDark.value ? 'dark' : 'light')
+}
 
 // ============================================================
 // 菜单选项
@@ -175,6 +186,10 @@ async function checkDualStatus() {
 }
 
 onMounted(() => {
+  // 恢复主题偏好
+  const saved = localStorage.getItem('arugo-theme')
+  if (saved === 'light') isDark.value = false
+
   connectSSE()
   checkFeishuStatus()
   checkDualStatus()
@@ -192,7 +207,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <n-config-provider :locale="zhCN" :date-locale="dateZhCN">
+  <n-config-provider :locale="zhCN" :date-locale="dateZhCN" :theme="theme">
     <n-message-provider>
       <n-dialog-provider>
         <n-layout style="height: 100vh;" has-sider>
@@ -296,6 +311,14 @@ onUnmounted(() => {
                   {{ agentStatus.feishuConnected ? '🟢 飞书' : '⚪ 飞书' }}
                 </n-tag>
                 <span class="version-tag">v1.0</span>
+                <n-button text size="small" @click="toggleTheme" :title="isDark ? '切换到亮色模式' : '切换到暗黑模式'">
+                  <template #icon>
+                    <n-icon size="16">
+                      <MoonOutline v-if="isDark" />
+                      <SunnyOutline v-else />
+                    </n-icon>
+                  </template>
+                </n-button>
               </n-space>
             </n-layout-header>
 
@@ -347,7 +370,7 @@ body {
   left: 0;
   right: 0;
   padding: 8px;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid var(--n-border-color, rgba(255,255,255,0.06));
 }
 
 /* ── 顶栏状态 ── */
@@ -374,11 +397,11 @@ body {
 
 .status-text {
   font-size: 13px;
-  color: #999;
+  color: var(--n-text-color-3, #999);
 }
 
 .version-tag {
   font-size: 12px;
-  color: #666;
+  color: var(--n-text-color-3, #666);
 }
 </style>

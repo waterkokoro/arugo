@@ -203,5 +203,5 @@ onMounted(refresh)
 </script>
 
 <style scoped>
-.hint { color: #999; font-size: 11px; }
+.hint { color: var(--n-text-color-3, #999); font-size: 11px; }
 </style>

@@ -139,13 +139,11 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #fafafa;
 }
 
 .chat-header {
   padding: 12px 16px;
-  background: #fff;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--n-border-color, #e8e8e8);
 }
 
 .chat-messages {
@@ -165,7 +163,6 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   padding: 8px 16px;
-  background: #fff;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--n-border-color, #e8e8e8);
 }
 </style>

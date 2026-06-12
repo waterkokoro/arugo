@@ -354,18 +354,18 @@ onUnmounted(() => {
 
 .label {
   font-size: 13px;
-  color: #888;
+  color: var(--n-text-color-3, #888);
   min-width: 80px;
 }
 
 .value {
   font-size: 13px;
-  color: #ccc;
+  color: var(--n-text-color, #ccc);
 }
 
 .empty-state {
   text-align: center;
-  color: #666;
+  color: var(--n-text-color-3, #666);
   padding: 40px 0;
   font-size: 14px;
 }
@@ -390,7 +390,7 @@ onUnmounted(() => {
 }
 
 .event-time {
-  color: #555;
+  color: var(--n-text-color-3, #555);
   font-size: 11px;
   min-width: 60px;
   flex-shrink: 0;
@@ -402,7 +402,7 @@ onUnmounted(() => {
 }
 
 .event-text {
-  color: #bbb;
+  color: var(--n-text-color-2, #bbb);
   word-break: break-all;
 }
 

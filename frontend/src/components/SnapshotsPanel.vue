@@ -17,7 +17,7 @@
     <n-modal v-model:show="showRestore" title="确认恢复" style="width: 400px">
       <n-card :bordered="false">
         <p>确定要从快照恢复？此操作会覆盖当前所有源码和配置数据。</p>
-        <p style="color: #999; font-size: 13px">恢复前会自动创建安全快照。恢复后需要重启服务。</p>
+        <p style="color: var(--n-text-color-3, #999); font-size: 13px">恢复前会自动创建安全快照。恢复后需要重启服务。</p>
       </n-card>
       <template #footer>
         <n-space justify="end">

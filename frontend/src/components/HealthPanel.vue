@@ -11,7 +11,7 @@
       <n-tag :type="overallTag" round size="small">
         {{ report?.verdict || '未检测' }}
       </n-tag>
-      <span style="color: #666; font-size: 12px; margin-left: auto">
+      <span style="color: var(--n-text-color-3, #666); font-size: 12px; margin-left: auto">
         {{ report?.timestamp?.slice(0, 19) || '' }}
       </span>
     </n-space>
@@ -40,8 +40,8 @@
               {{ statusIcon(check.status) }} {{ check.label }}
             </span>
           </template>
-          <p style="margin: 0 0 8px; font-size: 13px; color: #ccc">{{ check.message }}</p>
-          <p v-if="check.details" style="margin: 0 0 8px; font-size: 11px; color: #777; white-space: pre-wrap">{{ check.details }}</p>
+          <p style="margin: 0 0 8px; font-size: 13px; color: var(--n-text-color)">{{ check.message }}</p>
+          <p v-if="check.details" style="margin: 0 0 8px; font-size: 11px; color: var(--n-text-color-3, #777); white-space: pre-wrap">{{ check.details }}</p>
           <n-space v-if="check.suggestions?.length">
             <n-tag
               v-for="(s, i) in check.suggestions"

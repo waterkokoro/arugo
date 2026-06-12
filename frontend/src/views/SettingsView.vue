@@ -384,5 +384,5 @@ onMounted(() => { loadSettings(); loadFeishuConfig() })
 
 <style scoped>
 .settings-view { max-width: 640px; margin: 0 auto; padding: 24px; }
-.hint { color: #999; font-size: 12px; }
+.hint { color: var(--n-text-color-3, #999); font-size: 12px; }
 </style>

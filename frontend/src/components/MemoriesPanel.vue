@@ -4,7 +4,7 @@
       <n-input v-model:value="searchQuery" placeholder="搜索记忆..." clearable size="small" style="width: 240px" @keyup.enter="refresh" />
       <n-select v-model:value="filterCategory" :options="categoryOptions" placeholder="类别" clearable size="small" style="width: 140px" @update:value="refresh" />
       <n-button size="small" @click="refresh" :loading="loading">搜索</n-button>
-      <span style="color: #999; font-size: 12px; margin-left: 8px">{{ stats?.total ?? '-' }} 条记忆</span>
+      <span style="color: var(--n-text-color-3, #999); font-size: 12px; margin-left: 8px">{{ stats?.total ?? '-' }} 条记忆</span>
     </n-space>
 
     <n-data-table

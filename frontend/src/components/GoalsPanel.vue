@@ -13,7 +13,7 @@
             <span>{{ '★'.repeat(g.priority) }}</span>
             <strong>{{ g.title }}</strong>
             <n-tag :type="statusType(g.status)" size="tiny">{{ g.status }}</n-tag>
-            <span style="color: #999; font-size: 12px">{{ g.progress }}% · {{ g.milestones.length }}个里程碑</span>
+            <span style="color: var(--n-text-color-3, #999); font-size: 12px">{{ g.progress }}% · {{ g.milestones.length }}个里程碑</span>
           </n-space>
         </template>
         <template #header-extra>
@@ -23,11 +23,11 @@
           </n-space>
         </template>
 
-        <p v-if="g.description" style="color: #666; margin-bottom: 8px">{{ g.description }}</p>
+        <p v-if="g.description" style="color: var(--n-text-color-2, #666); margin-bottom: 8px">{{ g.description }}</p>
 
         <!-- 里程碑 -->
         <div v-if="g.milestones.length" style="margin-bottom: 8px">
-          <div v-for="m in g.milestones" :key="m.id" style="display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f0f0f0">
+          <div v-for="m in g.milestones" :key="m.id" style="display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--n-border-color, #333)">
             <span>{{ msIcon(m.status) }}</span>
             <n-progress :percentage="m.progress" :height="16" :border-radius="3" style="flex: 1; max-width: 200px" />
             <span style="flex: 1">{{ m.title }}</span>

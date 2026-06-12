@@ -2,7 +2,7 @@
   <div>
     <n-space style="margin-bottom: 12px">
       <n-button size="small" @click="refresh" :loading="loading">刷新</n-button>
-      <span style="color: #999; font-size: 12px">最近 {{ events.length }} 条事件</span>
+      <span style="color: var(--n-text-color-3, #999); font-size: 12px">最近 {{ events.length }} 条事件</span>
     </n-space>
 
     <n-timeline v-if="events.length">

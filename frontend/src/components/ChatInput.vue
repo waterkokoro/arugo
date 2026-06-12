@@ -57,8 +57,7 @@ function handleKeydown(e: KeyboardEvent) {
   display: flex;
   gap: 12px;
   padding: 16px;
-  background: #fff;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--n-border-color, #e8e8e8);
 }
 
 .chat-input :deep(.n-input) {

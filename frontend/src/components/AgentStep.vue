@@ -157,7 +157,7 @@ function formatArgs(args: Record<string, any>): string {
   flex: 1;
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--n-text-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -183,7 +183,7 @@ function formatArgs(args: Record<string, any>): string {
 
 .step-label {
   font-size: 11px;
-  color: #999;
+  color: var(--n-text-color-3, #999);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -191,12 +191,12 @@ function formatArgs(args: Record<string, any>): string {
 
 .result-size {
   font-weight: normal;
-  color: #bbb;
+  color: var(--n-text-color-3, #bbb);
   margin-left: 4px;
 }
 
 .step-result {
-  background: #f8f9fa;
+  background: var(--n-color-embedded, #1a1a1a);
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 12px;
@@ -207,8 +207,8 @@ function formatArgs(args: Record<string, any>): string {
   overflow-y: auto;
   margin: 0;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  color: #444;
-  border: 1px solid #eee;
+  color: var(--n-text-color-2, #ccc);
+  border: 1px solid var(--n-border-color, #333);
 }
 
 .step-result.is-error {

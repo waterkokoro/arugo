@@ -56,7 +56,7 @@
         </div>
 
         <!-- 消息内容 -->
-        <n-card v-if="message.content" :bordered="false" :style="{ backgroundColor: message.role === 'user' ? '#f0f9eb' : '#f5f5f5' }">
+        <n-card v-if="message.content" :bordered="false" class="msg-card">
           <div class="markdown-content" v-html="renderedContent"></div>
         </n-card>
 
@@ -167,7 +167,7 @@ const renderedContent = computed(() => {
   display: flex;
   gap: 12px;
   padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--n-border-color, #333);
 }
 
 .chat-message.is-user {
@@ -191,7 +191,7 @@ const renderedContent = computed(() => {
 
 .message-header {
   font-size: 12px;
-  color: #666;
+  color: var(--n-text-color-3, #999);
   margin-bottom: 4px;
   display: flex;
   align-items: center;
@@ -221,7 +221,7 @@ const renderedContent = computed(() => {
 }
 
 .thinking-content {
-  background: #f8f9fa;
+  background: var(--n-color-embedded, #1a1a1a);
   padding: 12px;
   border-radius: 6px;
   font-size: 12px;
@@ -232,12 +232,16 @@ const renderedContent = computed(() => {
   overflow-y: auto;
   margin: 0;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  color: #555;
+  color: var(--n-text-color-2, #aaa);
 }
 
 .markdown-content {
   line-height: 1.6;
   word-break: break-word;
+}
+
+.msg-card {
+  background: var(--n-color-embedded) !important;
 }
 
 .markdown-content :deep(pre) {
@@ -250,10 +254,11 @@ const renderedContent = computed(() => {
 }
 
 .markdown-content :deep(code) {
-  background: #e8e8e8;
+  background: var(--n-color-embedded, #333);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 0.9em;
+  color: var(--n-text-color, #ddd);
 }
 
 .markdown-content :deep(pre code) {
@@ -270,7 +275,7 @@ const renderedContent = computed(() => {
 
 .skeleton-line {
   height: 12px;
-  background: linear-gradient(90deg, #e8e8e8 25%, #f5f5f5 50%, #e8e8e8 75%);
+  background: linear-gradient(90deg, var(--n-color-embedded, #333) 25%, var(--n-color, #222) 50%, var(--n-color-embedded, #333) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: 4px;
