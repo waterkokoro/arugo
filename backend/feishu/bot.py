@@ -17,7 +17,11 @@ import re
 from typing import Optional, Callable, Awaitable
 
 import lark_oapi as lark
-from lark_oapi.api.im.v1 import ReplyMessageRequest, ReplyMessageRequestBody
+from lark_oapi.api.im.v1 import (
+    ReplyMessageRequest, ReplyMessageRequestBody,
+    CreateMessageReactionRequest, CreateMessageReactionRequestBody,
+)
+from lark_oapi.api.im.v1 import Reaction as ReactionType
 
 from .config import FeishuConfig
 
@@ -184,8 +188,8 @@ class FeishuBot:
                     await self._reply_via_rest(message_id, "消息太多了，请稍后再试～")
                     return
 
-                # 3 秒内发送"收到确认"（通过 REST API）
-                await self._reply_via_rest(message_id, "收到，正在思考...")
+                # 给用户消息添加表情回复（替代文字"收到，正在思考..."）
+                await self._add_reaction(message_id)
 
             except Exception as e:
                 logger.error(f"[FeishuBot] on_message 异常: {e}", exc_info=True)
@@ -232,6 +236,27 @@ class FeishuBot:
     # ================================================================
     # REST API 发送
     # ================================================================
+
+    async def _add_reaction(self, message_id: str, emoji_type: str = "OK"):
+        """给消息添加表情回复（替代"收到，正在思考..."文字）"""
+        if not self._client or not message_id:
+            return
+        try:
+            reaction = ReactionType.builder().emoji_type(emoji_type).build()
+            body = CreateMessageReactionRequestBody.builder().reaction_type(reaction).build()
+            request = (
+                CreateMessageReactionRequest.builder()
+                .message_id(message_id)
+                .request_body(body)
+                .build()
+            )
+            response = await self._client.im.v1.message_reaction.acreate(request)
+            if not response.success():
+                logger.warning(
+                    f"[FeishuBot] 表情回复失败: code={response.code}, msg={response.msg}"
+                )
+        except Exception as e:
+            logger.warning(f"[FeishuBot] 表情回复异常: {e}")
 
     async def _reply_via_rest(self, message_id: str, text: str):
         """通过飞书 REST API 回复消息，自动分段"""
