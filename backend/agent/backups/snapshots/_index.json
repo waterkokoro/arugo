@@ -125,7 +125,16 @@
       "file_count": 36,
       "total_size": 789166,
       "trigger": "manual"
+    },
+    {
+      "id": "20260613_004235_0c5f8e",
+      "name": "Phase5-UI主影子系统展示-改造前",
+      "description": "在 App.vue 和 StatusView.vue 中添加主系统(A)和影子系统(B)的区分展示之前",
+      "created_at": "2026-06-13T00:42:35.294237",
+      "file_count": 37,
+      "total_size": 822463,
+      "trigger": "manual"
     }
   ],
-  "updated_at": "2026-06-13T00:39:36.036520"
+  "updated_at": "2026-06-13T00:42:35.294252"
 }

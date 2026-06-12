@@ -1,7 +1,7 @@
 <template>
   <div class="status-panel">
-    <n-card title="Agent 实时状态" :bordered="false">
-      <!-- 连接状态 -->
+    <!-- 主系统 A -->
+    <n-card title="🟢 主系统 A (端口 8000)" :bordered="false">
       <n-space vertical size="small">
         <div class="indicator-row">
           <span class="label">Agent 状态</span>
@@ -16,8 +16,8 @@
         </div>
 
         <div class="indicator-row">
-          <span class="label">活跃会话</span>
-          <span class="value">{{ status.activeSessions }}</span>
+          <span class="label">工具数量</span>
+          <span class="value">{{ dual.mainTools || '—' }}</span>
         </div>
 
         <div class="indicator-row">
@@ -25,6 +25,75 @@
           <n-tag :type="status.feishuConnected ? 'success' : 'default'" round size="small">
             {{ status.feishuConnected ? '🟢 已连接' : '⚪ 未连接' }}
           </n-tag>
+        </div>
+
+        <div class="indicator-row">
+          <span class="label">活跃会话</span>
+          <span class="value">{{ status.activeSessions }}</span>
+        </div>
+      </n-space>
+    </n-card>
+
+    <!-- 影子系统 B -->
+    <n-card :title="(dual.shadowOnline ? '🔷 影子系统 B (端口 8001)' : '⬜ 影子系统 B (端口 8001)')" :bordered="false" style="margin-top: 16px;">
+      <template #header-extra>
+        <n-space size="small">
+          <n-button
+            v-if="!dual.shadowOnline"
+            size="small"
+            type="info"
+            ghost
+            @click="startShadow"
+            :loading="shadowLoading"
+          >
+            启动 B
+          </n-button>
+          <n-button
+            v-else
+            size="small"
+            type="warning"
+            ghost
+            @click="stopShadow"
+            :loading="shadowLoading"
+          >
+            停止 B
+          </n-button>
+        </n-space>
+      </template>
+
+      <n-space vertical size="small">
+        <div class="indicator-row">
+          <span class="label">运行状态</span>
+          <n-tag :type="dual.shadowOnline ? 'info' : 'default'" round size="small">
+            {{ dual.shadowOnline ? '🔷 运行中' : '⬜ 已停止' }}
+          </n-tag>
+        </div>
+
+        <div v-if="dual.shadowOnline" class="indicator-row">
+          <span class="label">工具数量</span>
+          <span class="value">{{ dual.shadowTools || '—' }}</span>
+        </div>
+
+        <div v-if="dual.shadowOnline" class="indicator-row">
+          <span class="label">飞书模式</span>
+          <n-tag type="default" round size="small">跳过（影子模式）</n-tag>
+        </div>
+
+        <div v-if="!dual.shadowOnline" class="empty-state" style="padding: 20px 0;">
+          影子系统未启动。它用于在隔离环境中<a href="javascript:void(0)">安全测试</a>代码改动。<br/>
+          测试通过后再升级到主系统 A。
+        </div>
+
+        <!-- 快捷操作 -->
+        <div v-if="dual.shadowOnline" style="margin-top: 8px;">
+          <n-space size="small">
+            <n-button size="small" type="success" ghost @click="testShadow" :loading="shadowLoading">
+              测试 B
+            </n-button>
+            <n-button size="small" type="primary" ghost @click="promoteShadow" :loading="shadowLoading">
+              升级到 A
+            </n-button>
+          </n-space>
         </div>
       </n-space>
     </n-card>
@@ -77,6 +146,14 @@ const status = reactive({
   feishuConnected: false,
 })
 
+const dual = reactive({
+  mainOnline: true,
+  mainTools: 0,
+  shadowOnline: false,
+  shadowTools: 0,
+})
+
+const shadowLoading = ref(false)
 const events = ref<LogEvent[]>([])
 const MAX_EVENTS = 100
 
@@ -171,7 +248,6 @@ function connect() {
 
     eventSource.onerror = () => {
       eventSource?.close()
-      // 5 秒后重连
       setTimeout(connect, 5000)
     }
   } catch {
@@ -179,7 +255,7 @@ function connect() {
   }
 }
 
-// 轮询获取飞书状态
+// 轮询获取飞书状态 + 双系统状态
 let pollTimer: ReturnType<typeof setInterval> | null = null
 async function checkFeishu() {
   try {
@@ -189,10 +265,71 @@ async function checkFeishu() {
   } catch { /* ignore */ }
 }
 
+async function checkDual() {
+  try {
+    const res = await fetch('/api/shadow/dual-status')
+    const data = await res.json()
+    dual.mainOnline = data.main?.reachable ?? true
+    dual.mainTools = data.main?.tool_count ?? 0
+    dual.shadowOnline = data.shadow?.reachable ?? false
+    dual.shadowTools = data.shadow?.tool_count ?? 0
+  } catch { /* ignore */ }
+}
+
+// ── 影子操作 ──
+async function startShadow() {
+  shadowLoading.value = true
+  try {
+    await fetch('/api/shadow/start', { method: 'POST' })
+    // 等 2 秒后刷新
+    setTimeout(checkDual, 2000)
+  } finally {
+    shadowLoading.value = false
+  }
+}
+
+async function stopShadow() {
+  shadowLoading.value = true
+  try {
+    await fetch('/api/shadow/stop', { method: 'POST' })
+    setTimeout(checkDual, 1500)
+  } finally {
+    shadowLoading.value = false
+  }
+}
+
+async function testShadow() {
+  shadowLoading.value = true
+  try {
+    const res = await fetch('/api/shadow/test', { method: 'POST' })
+    const data = await res.json()
+    addEvent({ time: nowTime(), type: 'tool_result', content: data.verdict || '测试完成' })
+  } finally {
+    shadowLoading.value = false
+  }
+}
+
+async function promoteShadow() {
+  if (!confirm('确认将影子 B 升级到主系统 A？A 将短暂重启。')) return
+  shadowLoading.value = true
+  try {
+    const res = await fetch('/api/shadow/promote', { method: 'POST' })
+    const data = await res.json()
+    addEvent({ time: nowTime(), type: data.success ? 'done' : 'error', content: data.message })
+  } finally {
+    shadowLoading.value = false
+    setTimeout(checkDual, 3000)
+  }
+}
+
 onMounted(() => {
   connect()
   checkFeishu()
-  pollTimer = setInterval(checkFeishu, 10000)
+  checkDual()
+  pollTimer = setInterval(() => {
+    checkFeishu()
+    checkDual()
+  }, 10000)
 })
 
 onUnmounted(() => {

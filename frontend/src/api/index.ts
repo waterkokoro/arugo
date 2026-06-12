@@ -145,6 +145,35 @@ export const chatApi = {
   },
 }
 
+// ─────────── 主/影子双系统状态 API ───────────
+
+export interface ServiceStatus {
+  port: number
+  reachable: boolean
+  status: string
+  tool_count: number
+  feishu_connected: boolean
+  agent_ready: boolean
+  version: string
+  error: string
+}
+
+export interface DualStatus {
+  current_mode: 'main' | 'shadow'
+  current_port: number
+  main: ServiceStatus
+  shadow: ServiceStatus
+}
+
+export const systemApi = {
+  dualStatus: () => api.get<DualStatus>('/shadow/dual-status'),
+  shadowStatus: () => api.get<{ running: boolean; port: number; startup_time: string; last_test_passed: boolean; last_test_time: string }>('/shadow/status'),
+  startShadow: () => api.post<{ success: boolean; message: string }>('/shadow/start'),
+  stopShadow: () => api.post<{ success: boolean; message: string }>('/shadow/stop'),
+  testShadow: () => api.post<{ success: boolean; all_passed: boolean; verdict: string; results: any[] }>('/shadow/test'),
+  promoteShadow: () => api.post<{ success: boolean; message: string }>('/shadow/promote'),
+}
+
 // 飞书配置 API
 export interface FeishuSettings {
   enabled: boolean

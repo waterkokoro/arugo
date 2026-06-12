@@ -72,8 +72,26 @@ app.include_router(shadow.router)
 
 @app.get("/api/health")
 async def health_check():
-    """健康检查"""
-    return {"status": "ok"}
+    """健康检查（含工具数量、Agent就绪状态）"""
+    import os
+    tool_count = 0
+    try:
+        from agent.tools import get_tools
+        tools = await get_tools()
+        tool_count = len(tools)
+    except Exception:
+        pass
+
+    is_shadow = os.environ.get("ARUGO_SHADOW", "").lower() in ("true", "1", "yes")
+
+    return {
+        "status": "ok",
+        "tool_count": tool_count,
+        "agent_ready": tool_count > 0,
+        "mode": "shadow" if is_shadow else "main",
+        "port": 8001 if is_shadow else 8000,
+        "feishu_skipped": is_shadow,  # 影子模式跳过飞书
+    }
 
 
 if __name__ == "__main__":

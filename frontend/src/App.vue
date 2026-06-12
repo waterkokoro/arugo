@@ -143,9 +143,43 @@ async function checkFeishuStatus() {
   } catch { /* ignore */ }
 }
 
+// ─────────── 主/影子双系统状态 ───────────
+const systemStatus = ref<{
+  mainOnline: boolean
+  mainTools: number
+  shadowOnline: boolean
+  shadowTools: number
+  currentMode: string
+}>({
+  mainOnline: true,
+  mainTools: 0,
+  shadowOnline: false,
+  shadowTools: 0,
+  currentMode: 'main',
+})
+
+async function checkDualStatus() {
+  try {
+    const res = await fetch('/api/shadow/dual-status')
+    const data = await res.json()
+    systemStatus.value.mainOnline = data.main?.reachable ?? true
+    systemStatus.value.mainTools = data.main?.tool_count ?? 0
+    systemStatus.value.shadowOnline = data.shadow?.reachable ?? false
+    systemStatus.value.shadowTools = data.shadow?.tool_count ?? 0
+    systemStatus.value.currentMode = data.current_mode || 'main'
+  } catch {
+    // 主服务自己就是 A，至少 A 在线
+    systemStatus.value.mainOnline = true
+    systemStatus.value.shadowOnline = false
+  }
+}
+
 onMounted(() => {
   connectSSE()
   checkFeishuStatus()
+  checkDualStatus()
+  // 每 10 秒刷新双系统状态
+  setInterval(checkDualStatus, 10000)
 })
 
 onUnmounted(() => {
@@ -222,8 +256,37 @@ onUnmounted(() => {
                 </n-tag>
               </n-space>
 
-              <!-- 右侧: 连接状态 -->
+              <!-- 右侧: 主/影子系统 + 连接状态 -->
               <n-space align="center" size="small">
+                <!-- 主系统 A -->
+                <n-tag
+                  size="small"
+                  :type="systemStatus.mainOnline ? 'success' : 'error'"
+                  :bordered="false"
+                  round
+                  title="主服务 A (8000)"
+                >
+                  {{ systemStatus.mainOnline ? '🟢 A' : '🔴 A' }}
+                  <template v-if="systemStatus.mainTools > 0">
+                    · {{ systemStatus.mainTools }}工具
+                  </template>
+                </n-tag>
+
+                <!-- 影子系统 B -->
+                <n-tag
+                  size="small"
+                  :type="systemStatus.shadowOnline ? 'info' : 'default'"
+                  :bordered="false"
+                  round
+                  title="影子服务 B (8001)"
+                >
+                  {{ systemStatus.shadowOnline ? '🔷 B' : '⬜ B' }}
+                  <template v-if="systemStatus.shadowTools > 0">
+                    · {{ systemStatus.shadowTools }}工具
+                  </template>
+                </n-tag>
+
+                <!-- 飞书 -->
                 <n-tag
                   size="small"
                   :type="agentStatus.feishuConnected ? 'success' : 'default'"
