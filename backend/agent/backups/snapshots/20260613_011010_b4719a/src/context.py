@@ -53,14 +53,13 @@ class ContextManager:
         )
         await self.db.commit()
 
-    async def build_context(self, system_prompt: str, inject_memory: bool = True, inject_goals: bool = True, skip_stm_update: bool = False) -> List[Dict[str, str]]:
+    async def build_context(self, system_prompt: str, inject_memory: bool = True, inject_goals: bool = True) -> List[Dict[str, str]]:
         """构建完整的上下文（system prompt + 持久记忆 + 活跃目标 + 历史消息）
 
         Args:
             system_prompt: 系统提示词
             inject_memory: 是否注入持久记忆（默认 True）
             inject_goals: 是否注入活跃进化目标（默认 True）
-            skip_stm_update: 是否跳过短期记忆文件更新（飞书等外部渠道自行管理 STM 时设为 True）
         """
         messages = []
 
@@ -99,13 +98,12 @@ class ContextManager:
             # 异步触发摘要保存（不阻塞当前请求）
             asyncio.create_task(self._auto_summarize(current_count, window_size))
 
-        # 4. 更新短期记忆文件（current.md）—— 外部渠道可跳过，自行管理
-        if not skip_stm_update:
-            try:
-                stm = get_short_term_memory()
-                stm.update_current_window(messages, window_size)
-            except Exception as e:
-                print(f"[Context] 短期记忆更新失败: {e}")
+        # 4. 更新短期记忆文件（current.md）
+        try:
+            stm = get_short_term_memory()
+            stm.update_current_window(messages, window_size)
+        except Exception as e:
+            print(f"[Context] 短期记忆更新失败: {e}")
 
         return messages
 

@@ -346,7 +346,7 @@ def create_message_handler(
                     chat_history_text = group_ctx.get_context_injection(chat_id)
 
                 # 构建上下文
-                context = await context_mgr.build_context(system_prompt)
+                context = await context_mgr.build_context(system_prompt, skip_stm_update=True)
 
                 # 注入群聊历史（在 system prompt 之后，用户消息之前）
                 if chat_history_text:
@@ -360,9 +360,17 @@ def create_message_handler(
                     "content": f"[来自飞书用户 {sender_id}]\n{text}"
                 })
 
-                # ── 将用户消息存入群聊上下文 ──
+                # ── 将用户消息存入群聊上下文 + 短期记忆文件 ──
                 if chat_id:
                     group_ctx.add_message(chat_id, "user", text)
+
+                # 同步写入短期记忆文件（跨渠道统一）
+                try:
+                    from agent.short_term_memory import get_short_term_memory
+                    stm = get_short_term_memory()
+                    stm.append_message("user", f"[飞书 {sender_id}] {text}", window_size=50)
+                except Exception:
+                    pass
 
                 # 获取 LLM 配置
                 async with db.execute("SELECT key, value FROM settings") as cursor:
@@ -446,9 +454,18 @@ def create_message_handler(
 
                 reply = full_reply or "收到你的消息了，但没能生成回复 😅"
 
-                # ── 将助手回复存入群聊上下文 ──
+                # ── 将助手回复存入群聊上下文 + 短期记忆文件 ──
                 if chat_id and reply:
                     group_ctx.add_message(chat_id, "assistant", reply)
+
+                # 同步写入短期记忆文件
+                if reply:
+                    try:
+                        from agent.short_term_memory import get_short_term_memory
+                        stm = get_short_term_memory()
+                        stm.append_message("assistant", reply, window_size=50)
+                    except Exception:
+                        pass
 
                 return reply
 

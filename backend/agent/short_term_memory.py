@@ -83,6 +83,81 @@ class ShortTermMemory:
                 emoji = {"user": "👤", "assistant": "🤖", "tool": "🔧"}.get(role, "❓")
                 f.write(f"### {emoji} [{role}]\n\n{content}\n\n")
 
+    def append_message(self, role: str, content: str, window_size: int = 50):
+        """向 current.md 追加一条消息（用于飞书等外部渠道的实时同步）
+
+        流式追加策略：
+        1. 如果 current.md 不存在 → 创建新窗口
+        2. 如果存在 → 读取现有消息列表，追加后重写（保持窗口上限）
+
+        Args:
+            role: 消息角色 (user/assistant/tool)
+            content: 消息内容
+            window_size: 窗口上限，默认 50
+        """
+        _ensure_dir()
+
+        # 读取现有消息
+        existing = []
+        if os.path.exists(self.current_path):
+            # 从 MD 文件回解析消息（尽量恢复）
+            existing = self._parse_messages_from_md()
+
+        # 追加新消息
+        existing.append({"role": role, "content": content})
+
+        # 保持窗口上限
+        if len(existing) > window_size:
+            existing = existing[-window_size:]
+
+        # 重写 current.md
+        with open(self.current_path, "w", encoding="utf-8") as f:
+            f.write(f"# 短期记忆（滑动窗口）\n\n")
+            f.write(f"> 更新时间: {datetime.now().isoformat()}\n")
+            f.write(f"> 窗口配置: {window_size} 条 | 当前消息: {len(existing)} 条\n")
+            f.write(f"> 使用率: {len(existing) / max(window_size, 1) * 100:.0f}%\n\n")
+            f.write(f"---\n\n")
+
+            if not existing:
+                f.write("*(窗口为空)*\n")
+                return
+
+            for msg in existing:
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                if len(content) > 3000:
+                    content = content[:3000] + "\n\n*(内容过长，已截断...)*"
+
+                emoji = {"user": "👤", "assistant": "🤖", "tool": "🔧"}.get(role, "❓")
+                f.write(f"### {emoji} [{role}]\n\n{content}\n\n")
+
+    def _parse_messages_from_md(self) -> List[Dict[str, str]]:
+        """从 current.md 反向解析消息列表（尽力而为）
+
+        解析 Markdown 中的 `### {emoji} [role]` 格式。
+        失败则返回空列表。
+        """
+        if not os.path.exists(self.current_path):
+            return []
+
+        try:
+            with open(self.current_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception:
+            return []
+
+        import re
+        messages = []
+        # 匹配 ### {emoji} [role] 后面的内容直到下一个 ### 或 EOF
+        pattern = r'### [^\n]+ \[(\w+)\]\n\n(.*?)(?=\n### |\Z)'
+        for match in re.finditer(pattern, content, re.DOTALL):
+            role = match.group(1)
+            msg_content = match.group(2).strip()
+            if msg_content and msg_content != "*(窗口为空)*":
+                messages.append({"role": role, "content": msg_content})
+
+        return messages
+
     def load_current(self) -> Optional[str]:
         """读取 current.md 内容"""
         if not os.path.exists(self.current_path):
