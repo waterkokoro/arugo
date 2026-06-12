@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 from database import init_db
-from routers import settings, chat, feishu, management
+from routers import settings, chat, feishu, management, status
 
 
 @asynccontextmanager
@@ -61,6 +61,7 @@ app.include_router(settings.router)
 app.include_router(chat.router)
 app.include_router(feishu.router)
 app.include_router(management.router)
+app.include_router(status.router)
 
 
 @app.get("/api/health")

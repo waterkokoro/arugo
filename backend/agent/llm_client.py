@@ -252,12 +252,24 @@ class LLMClient:
             base_url=config["base_url"],
         )
 
+        # ── 事件总线集成：发布事件到全局总线 ──
+        from agent.event_bus import get_or_create_session
+
+        session_id = "default"  # 可扩展为 per-request session
+        bus_session = get_or_create_session(session_id)
+
+        async def _emit(event: AgentEvent):
+            """同时 yield 和发布到事件总线"""
+            await bus_session.publish(event)
+
         iteration = 0
         while iteration < max_iterations:
             # 检查停止信号
             if stop_event.is_set():
                 print(f"[Agent] 收到停止信号，结束流")
-                yield AgentEvent(type="done", content="[已停止]")
+                done_event = AgentEvent(type="done", content="[已停止]")
+                await _emit(done_event)
+                yield done_event
                 return
 
             iteration += 1
@@ -284,8 +296,12 @@ class LLMClient:
                 except Exception as e:
                     print(f"[Agent] LLM 调用失败: {e}")
                     traceback.print_exc()
-                    yield AgentEvent(type="error", content=f"LLM 调用失败: {str(e)}")
-                    yield AgentEvent(type="done")
+                    err_event = AgentEvent(type="error", content=f"LLM 调用失败: {str(e)}")
+                    await _emit(err_event)
+                    yield err_event
+                    done_event = AgentEvent(type="done")
+                    await _emit(done_event)
+                    yield done_event
                     return
 
                 # 收集流式响应
@@ -352,8 +368,12 @@ class LLMClient:
                 # 发送最终内容（如果没有工具调用）
                 if not tool_calls:
                     if content:
-                        yield AgentEvent(type="content", content=content)
-                    yield AgentEvent(type="done")
+                        ct_event = AgentEvent(type="content", content=content)
+                        await _emit(ct_event)
+                        yield ct_event
+                    done_event = AgentEvent(type="done")
+                    await _emit(done_event)
+                    yield done_event
                     return
 
                 # 处理工具调用
@@ -369,12 +389,14 @@ class LLMClient:
                     print(f"[Agent] 调用工具: {tool_name}, 参数: {list(tool_args.keys())}")
 
                     # 发送工具调用事件
-                    yield AgentEvent(
+                    tc_event = AgentEvent(
                         type="tool_call",
                         tool=tool_name,
                         tool_args=tool_args,
                         call_id=call_id,
                     )
+                    await _emit(tc_event)
+                    yield tc_event
 
                     # 执行工具
                     if tool_name in tool_map:
@@ -385,20 +407,24 @@ class LLMClient:
 
                             # 如果是 edit_file，额外发送 diff 信息
                             if tool_name == "edit_file" and "path" in tool_args:
-                                yield AgentEvent(
+                                diff_event = AgentEvent(
                                     type="diff",
                                     diff_path=tool_args.get("path", ""),
                                     diff_old=tool_args.get("old_content", ""),
                                     diff_new=tool_args.get("new_content", ""),
                                 )
+                                await _emit(diff_event)
+                                yield diff_event
 
                             # 发送工具结果事件
-                            yield AgentEvent(
+                            tr_event = AgentEvent(
                                 type="tool_result",
                                 tool=tool_name,
                                 tool_result=str(result)[:2000],
                                 call_id=call_id,
                             )
+                            await _emit(tr_event)
+                            yield tr_event
 
                             # 将工具结果添加到消息历史
                             messages.append({
@@ -410,12 +436,14 @@ class LLMClient:
                             error_msg = f"工具执行失败: {str(e)}"
                             print(f"[Agent] 工具 {tool_name} 执行失败: {e}")
                             traceback.print_exc()
-                            yield AgentEvent(
+                            tr_err_event = AgentEvent(
                                 type="tool_result",
                                 tool=tool_name,
                                 tool_result=error_msg,
                                 call_id=call_id,
                             )
+                            await _emit(tr_err_event)
+                            yield tr_err_event
                             messages.append({
                                 "role": "tool",
                                 "tool_call_id": call_id,
@@ -424,12 +452,14 @@ class LLMClient:
                     else:
                         error_msg = f"未知工具: {tool_name}"
                         print(f"[Agent] {error_msg}")
-                        yield AgentEvent(
+                        unk_event = AgentEvent(
                             type="tool_result",
                             tool=tool_name,
                             tool_result=error_msg,
                             call_id=call_id,
                         )
+                        await _emit(unk_event)
+                        yield unk_event
                         messages.append({
                             "role": "tool",
                             "tool_call_id": call_id,
@@ -441,14 +471,22 @@ class LLMClient:
                 error_msg = f"Agent 执行异常: {str(e)}"
                 print(f"[Agent] {error_msg}")
                 traceback.print_exc()
-                yield AgentEvent(type="error", content=error_msg)
-                yield AgentEvent(type="done")
+                err_event = AgentEvent(type="error", content=error_msg)
+                await _emit(err_event)
+                yield err_event
+                done_event = AgentEvent(type="done")
+                await _emit(done_event)
+                yield done_event
                 return
 
         # 达到安全上限（仅当 AI 持续调用工具超过 max_iterations 轮时触发）
         print(f"[Agent] 达到安全上限 {max_iterations} 轮，强制结束")
-        yield AgentEvent(
+        limit_event = AgentEvent(
             type="error",
             content=f"工具调用轮次超过安全上限 ({max_iterations})，已强制结束。如需更多轮次，请拆分任务。",
         )
-        yield AgentEvent(type="done")
+        await _emit(limit_event)
+        yield limit_event
+        done_event = AgentEvent(type="done")
+        await _emit(done_event)
+        yield done_event

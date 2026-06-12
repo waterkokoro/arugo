@@ -19,6 +19,11 @@ const router = createRouter({
       name: 'manage',
       component: () => import('../views/ManagementView.vue'),
     },
+    {
+      path: '/status',
+      name: 'status',
+      component: () => import('../views/StatusView.vue'),
+    },
   ],
 })
 
