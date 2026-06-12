@@ -74,40 +74,68 @@ def create_message_handler(
                         except Exception:
                             pass
 
-                # Agent 模式流式收集 + 进度推送
-                full_reply = ""
-                async for event in llm_client.agent_stream(
-                    context, max_iterations=200,
-                    deep_thinking=False,
-                    web_search_enabled=True,
-                ):
-                    if event.type == "content" and event.content:
-                        full_reply += event.content
+                # ── 进度心跳：5s, 10s, 15s, 15s... 发送"还在处理中" ──
+                import asyncio as _asyncio
+                heartbeat_intervals = [5, 10, 15]
+                heartbeat_active = True
 
-                    elif event.type == "thinking" and event.content:
-                        # 思考过程（仅首次推送）
-                        await notify("🤔 正在思考...")
+                async def heartbeat():
+                    idx = 0
+                    while heartbeat_active:
+                        wait = heartbeat_intervals[min(idx, len(heartbeat_intervals) - 1)]
+                        await _asyncio.sleep(wait)
+                        if heartbeat_active and progress_callback:
+                            try:
+                                await progress_callback("⏳ 还在处理中...")
+                            except Exception:
+                                pass
+                        idx += 1
 
-                    elif event.type == "tool_call":
-                        tool_count += 1
-                        tool_name = event.tool or "unknown"
-                        # 人性化描述
-                        desc = _tool_description(tool_name, event.tool_args or {})
-                        await notify(f"🔧 [{tool_count}] {desc}")
+                heartbeat_task = _asyncio.create_task(heartbeat())
 
-                    elif event.type == "tool_result":
-                        # 结果摘要
-                        result_preview = (event.tool_result or "")[:60].replace("\n", " ")
-                        if result_preview:
-                            await notify(f"   ╰ {result_preview}")
+                try:
+                    # Agent 模式流式收集 + 进度推送
+                    full_reply = ""
+                    async for event in llm_client.agent_stream(
+                        context, max_iterations=200,
+                        deep_thinking=False,
+                        web_search_enabled=True,
+                    ):
+                        if event.type == "content" and event.content:
+                            full_reply += event.content
 
-                    elif event.type == "error":
-                        full_reply += f"\n[错误] {event.content}"
-                        await notify(f"⚠️ {event.content[:80]}")
+                        elif event.type == "thinking" and event.content:
+                            # 思考过程（仅首次推送）
+                            await notify("🤔 正在思考...")
 
-                # 完成通知
-                if tool_count > 0:
-                    await notify(f"✅ 完成（共 {tool_count} 步操作）")
+                        elif event.type == "tool_call":
+                            tool_count += 1
+                            tool_name = event.tool or "unknown"
+                            # 人性化描述
+                            desc = _tool_description(tool_name, event.tool_args or {})
+                            await notify(f"🔧 [{tool_count}] {desc}")
+
+                        elif event.type == "tool_result":
+                            # 结果摘要
+                            result_preview = (event.tool_result or "")[:60].replace("\n", " ")
+                            if result_preview:
+                                await notify(f"   ╰ {result_preview}")
+
+                        elif event.type == "error":
+                            full_reply += f"\n[错误] {event.content}"
+                            await notify(f"⚠️ {event.content[:80]}")
+
+                    # 完成通知
+                    if tool_count > 0:
+                        await notify(f"✅ 完成（共 {tool_count} 步操作）")
+
+                finally:
+                    heartbeat_active = False
+                    heartbeat_task.cancel()
+                    try:
+                        await heartbeat_task
+                    except _asyncio.CancelledError:
+                        pass
 
                 return full_reply or "收到你的消息了，但没能生成回复 😅"
 
