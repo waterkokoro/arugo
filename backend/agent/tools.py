@@ -851,8 +851,68 @@ try:
 except ImportError:
     pass
 
+
+
+# ============================================================
+# 动态添加的工具: quality_gate_check（类别: evolution）
+# ============================================================
+
+@tool
+def quality_gate_check(
+    operation: str,
+    target: str = "",
+    code: str = "",
+    result: str = "",
+    stage: str = "full"
+) -> str:
+    """质量门禁检查——在关键操作前后进行风险评估。
+
+    Args:
+        operation: 操作类型，如 "write_file", "edit_file", "add_tool_to_self", "git_commit"
+        target: 操作目标（文件路径、工具名等）
+        code: 要检查的代码内容（可选，用于静态分析）
+        result: 操作结果描述（可选，用于操作后验证）
+        stage: 检查阶段 - "pre"(操作前), "post"(操作后), "full"(三阶段完整检查)
+    """
+    import json as _json
+
+    from agent.quality_gate import get_quality_gate, GateStatus
+
+    gate = get_quality_gate()
+
+    if stage == "pre":
+        r = gate.pre_flight_check(operation, target)
+        return _json.dumps(r.to_dict(), ensure_ascii=False, indent=2)
+
+    elif stage == "post":
+        r = gate.post_flight_check(operation, result)
+        return _json.dumps(r.to_dict(), ensure_ascii=False, indent=2)
+
+    elif stage == "inline":
+        r = gate.inline_check(code)
+        return _json.dumps(r.to_dict(), ensure_ascii=False, indent=2)
+
+    else:  # full
+        full = gate.full_gate_check(operation, target, code, result)
+        return _json.dumps(full, ensure_ascii=False, indent=2)
+
+
 # 所有工具
 _ALL_TOOLS = _BUILTIN_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS
+
+# 动态工具注册
+try:
+    _ALL_TOOLS.append(quality_gate_check)
+    get_tool_registry().register(ToolDef(
+        name="quality_gate_check",
+        description=quality_gate_check.description if hasattr(quality_gate_check, 'description') else "",
+        func=quality_gate_check,
+        source="generated",
+        category="evolution",
+    ))
+    print("[SelfEvo] 工具 \"quality_gate_check\" 已注册")
+except Exception as e:
+    print(f"[SelfEvo] 工具 \"quality_gate_check\" 注册失败: {e}")
 
 
 def get_tools(web_search_enabled: bool = True) -> list:

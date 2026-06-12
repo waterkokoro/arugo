@@ -1,0 +1,6 @@
+{
+  "name": "quality_gate_check",
+  "description": "@tool\ndef quality_gate_check(\n    operation: str,\n    target: str = \"\",\n    code: str = \"\",\n    result: str = \"\",\n    stage: str = \"full\"\n) -> str:\n    \"\"\"质量门禁检查——在关键操作前后进行风险评估。\n\n    Args:\n        ope",
+  "category": "evolution",
+  "parameters": {}
+}
