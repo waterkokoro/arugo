@@ -358,12 +358,26 @@ class FeishuBot:
 
     @staticmethod
     def _extract_sender_id(msg) -> str:
-        """提取发送者 ID"""
+        """提取发送者 open_id（用于权限验证）"""
+        # 尝试: msg.sender.sender_id (可能是对象含 open_id)
         sender = getattr(msg, 'sender', None)
         if sender:
-            sid = getattr(sender, 'id', None) or getattr(sender, 'sender_id', None)
-            if sid:
-                return str(sid)
+            # sender.sender_id 可能是对象（有 open_id）或字符串
+            sid_obj = getattr(sender, 'sender_id', None)
+            if sid_obj:
+                # 对象形式: sender_id.open_id
+                if hasattr(sid_obj, 'open_id'):
+                    oid = getattr(sid_obj, 'open_id', None)
+                    if oid:
+                        return str(oid)
+                # 字符串形式
+                if isinstance(sid_obj, str):
+                    return sid_obj
+            # 直接属性
+            for attr in ['open_id', 'id', 'sender_id']:
+                val = getattr(sender, attr, None)
+                if val and isinstance(val, str):
+                    return val
             return str(sender)
         return 'unknown'
 
