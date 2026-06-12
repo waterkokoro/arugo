@@ -45,7 +45,7 @@ def reset_stream(session_id: str = "default"):
 @dataclass
 class AgentEvent:
     """Agent 执行过程中的事件"""
-    type: Literal["content", "thinking", "tool_call", "tool_result", "diff", "error", "done"]
+    type: Literal["content", "thinking", "tool_call", "tool_result", "diff", "error", "done", "working"]
     content: str = ""
     tool: str = ""
     tool_args: dict = field(default_factory=dict)
@@ -54,6 +54,8 @@ class AgentEvent:
     diff_old: str = ""
     diff_new: str = ""
     diff_path: str = ""
+    iteration: int = 0          # 当前 LLM 轮次（tool_call / tool_result 时有效）
+    total_tool_calls: int = 0   # 累计已调用工具数
 
     def to_dict(self) -> dict:
         """转换为字典，过滤空字段"""
@@ -75,6 +77,10 @@ class AgentEvent:
             d["diff_new"] = self.diff_new
         if self.diff_path:
             d["diff_path"] = self.diff_path
+        if self.iteration:
+            d["iteration"] = self.iteration
+        if self.total_tool_calls:
+            d["total_tool_calls"] = self.total_tool_calls
         return d
 
 
@@ -275,6 +281,11 @@ class LLMClient:
             iteration += 1
             print(f"[Agent] 第 {iteration} 轮调用 LLM...")
 
+            # 发送"工作中"事件，通知前端当前轮次
+            wk_event = AgentEvent(type="working", content=f"第 {iteration} 轮推理", iteration=iteration)
+            await _emit(wk_event)
+            yield wk_event
+
             try:
                 # 构建请求参数
                 request_kwargs = {
@@ -377,9 +388,11 @@ class LLMClient:
                     return
 
                 # 处理工具调用
+                tool_call_count = 0
                 for tc in tool_calls:
                     tool_name = tc["function"]["name"]
                     call_id = tc["id"] or str(uuid.uuid4())
+                    tool_call_count += 1
                     
                     try:
                         tool_args = json.loads(tc["function"]["arguments"])
@@ -388,12 +401,14 @@ class LLMClient:
                     
                     print(f"[Agent] 调用工具: {tool_name}, 参数: {list(tool_args.keys())}")
 
-                    # 发送工具调用事件
+                    # 发送工具调用事件（含轮次信息）
                     tc_event = AgentEvent(
                         type="tool_call",
                         tool=tool_name,
                         tool_args=tool_args,
                         call_id=call_id,
+                        iteration=iteration,
+                        total_tool_calls=tool_call_count,
                     )
                     await _emit(tc_event)
                     yield tc_event
@@ -412,16 +427,18 @@ class LLMClient:
                                     diff_path=tool_args.get("path", ""),
                                     diff_old=tool_args.get("old_content", ""),
                                     diff_new=tool_args.get("new_content", ""),
+                                    iteration=iteration,
                                 )
                                 await _emit(diff_event)
                                 yield diff_event
 
-                            # 发送工具结果事件
+                            # 发送工具结果事件（含轮次信息）
                             tr_event = AgentEvent(
                                 type="tool_result",
                                 tool=tool_name,
                                 tool_result=str(result)[:2000],
                                 call_id=call_id,
+                                iteration=iteration,
                             )
                             await _emit(tr_event)
                             yield tr_event
@@ -441,6 +458,7 @@ class LLMClient:
                                 tool=tool_name,
                                 tool_result=error_msg,
                                 call_id=call_id,
+                                iteration=iteration,
                             )
                             await _emit(tr_err_event)
                             yield tr_err_event
@@ -457,6 +475,7 @@ class LLMClient:
                             tool=tool_name,
                             tool_result=error_msg,
                             call_id=call_id,
+                            iteration=iteration,
                         )
                         await _emit(unk_event)
                         yield unk_event

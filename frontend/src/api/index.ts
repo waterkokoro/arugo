@@ -51,7 +51,7 @@ export const messagesApi = {
 
 // Agent 事件类型
 export interface AgentEvent {
-  type: 'content' | 'thinking' | 'tool_call' | 'tool_result' | 'diff' | 'error' | 'done'
+  type: 'content' | 'thinking' | 'tool_call' | 'tool_result' | 'diff' | 'error' | 'done' | 'working'
   content?: string
   tool?: string
   tool_args?: Record<string, any>
@@ -60,6 +60,8 @@ export interface AgentEvent {
   diff_path?: string
   diff_old?: string
   diff_new?: string
+  iteration?: number
+  total_tool_calls?: number
 }
 
 // 聊天回调类型

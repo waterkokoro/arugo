@@ -57,6 +57,7 @@
         v-for="(msg, index) in chatStore.messages"
         :key="index"
         :message="msg"
+        :is-working="chatStore.isStreaming && index === chatStore.messages.length - 1 && msg.role === 'assistant'"
       />
     </div>
 

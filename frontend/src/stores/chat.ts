@@ -9,6 +9,8 @@ export interface AgentStep {
   toolArgs?: Record<string, any>
   result?: string
   status: 'running' | 'success' | 'error'
+  iteration?: number          // 所属 LLM 轮次
+  totalToolCalls?: number     // 本轮第几个工具调用
 }
 
 // Agent Diff 类型
@@ -103,6 +105,8 @@ export const useChatStore = defineStore('chat', () => {
                 tool: event.tool,
                 toolArgs: event.tool_args,
                 status: 'running',
+                iteration: (event as any).iteration || 0,
+                totalToolCalls: (event as any).total_tool_calls || 0,
               })
             }
 
