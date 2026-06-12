@@ -319,6 +319,111 @@ def save_session_summary(summary: str) -> str:
     return f"会话摘要已保存，下次对话时将自动加载。"
 
 
+# ============================================================
+# 短期记忆工具 - MD 文件持久化的滑动窗口
+# ============================================================
+
+from agent.short_term_memory import get_short_term_memory as _get_stm
+
+
+@tool
+def list_short_term_memories() -> str:
+    """列出所有短期记忆文件（滑动窗口的 MD 快照）。
+
+    包括实时镜像 current.md 和历史归档快照。
+    文件存储在 memory_store/short_term/ 目录下，可随时查看或删除。
+    """
+    stm = _get_stm()
+    stats = stm.get_stats()
+    
+    if stats["total_files"] == 0:
+        return "📭 暂无短期记忆文件。\n   文件会在对话过程中自动生成（memory_store/short_term/current.md）。"
+    
+    lines = [
+        f"📂 短期记忆文件 ({stats['total_files']} 个, {stats['total_size_kb']} KB)",
+        f"   归档快照: {stats['archived_snapshots']} 个",
+        f"   实时窗口: {'✅ current.md' if stats['has_current'] else '❌ 无'}",
+        f"",
+    ]
+    
+    for f in stats["files"]:
+        icon = "📌" if f.get("is_current") else "📦"
+        lines.append(f"  {icon} {f['filename']} ({f['size_kb']} KB) - {f['modified'][:19]}")
+    
+    lines.append(f"\n💡 用 read_short_term_memory 读取，delete_short_term_memory 删除。")
+    return "\n".join(lines)
+
+
+@tool
+def read_short_term_memory(filename: str = "current.md") -> str:
+    """读取指定短期记忆文件的内容。
+
+    Args:
+        filename: 文件名，默认 "current.md"（当前滑动窗口）。
+                  可用 list_short_term_memories 查看所有文件。
+    """
+    stm = _get_stm()
+    content = stm.read_snapshot(filename)
+    
+    if content is None:
+        return f"❌ 文件不存在: {filename}\n   使用 list_short_term_memories 查看可用文件。"
+    
+    # 截断过长内容
+    if len(content) > 8000:
+        content = content[:8000] + f"\n\n*(文件过大，已截断。完整内容 {len(content)} 字符)*"
+    
+    return content
+
+
+@tool
+def delete_short_term_memory(filename: str) -> str:
+    """删除指定短期记忆文件。
+
+    只能删除归档快照，不能删除 current.md（实时窗口）。
+    要清空所有归档，使用 delete_all_short_term_memories。
+
+    Args:
+        filename: 要删除的文件名（如 "2026-06-13_143000.md"）
+    """
+    if filename == "current.md":
+        return "⚠️ 不能删除 current.md（实时滑动窗口）。\n   如需清空窗口内容，请使用 clear_short_term_memory。"
+    
+    stm = _get_stm()
+    success = stm.delete_snapshot(filename)
+    
+    if success:
+        return f"✅ 已删除短期记忆文件: {filename}"
+    else:
+        return f"❌ 删除失败，文件不存在: {filename}"
+
+
+@tool
+def clear_short_term_memory() -> str:
+    """清空所有短期记忆：归档 current.md 并删除所有历史快照。
+
+    这是一个安全的"重置"操作——当前窗口会先被归档（可恢复），
+    然后删除所有历史快照释放磁盘空间。
+    """
+    stm = _get_stm()
+    
+    # 先归档当前窗口
+    archived = stm.archive_current(label="manual_clear")
+    archive_msg = f"当前窗口已归档: {os.path.basename(archived)}" if archived else "当前窗口为空，无需归档"
+    
+    # 删除所有归档
+    count = stm.delete_all_snapshots()
+    
+    return f"🧹 短期记忆已清空\n   {archive_msg}\n   已删除 {count} 个历史快照"
+
+
+_SHORT_TERM_MEMORY_TOOLS = [
+    list_short_term_memories,
+    read_short_term_memory,
+    delete_short_term_memory,
+    clear_short_term_memory,
+]
+
+
 @tool
 def log_evolution_event(event_type: str, description: str) -> str:
     """记录AI进化事件，追踪能力变化和成长轨迹。
@@ -1392,7 +1497,7 @@ _DIAGNOSTICS_TOOLS = [
 
 
 # 所有工具
-_ALL_TOOLS = _BUILTIN_TOOLS + _GOAL_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS + _SNAPSHOT_TOOLS + _TEST_TOOLS + _DIAGNOSTICS_TOOLS
+_ALL_TOOLS = _BUILTIN_TOOLS + _GOAL_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _SHORT_TERM_MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS + _SNAPSHOT_TOOLS + _TEST_TOOLS + _DIAGNOSTICS_TOOLS
 
 # 动态工具注册
 try:

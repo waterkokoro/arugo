@@ -1,13 +1,15 @@
 from typing import List, Dict, Optional
+import os
 import asyncio
 import aiosqlite
 from datetime import datetime
 from agent.memory import PersistentMemoryManager
 from agent.goal_manager import get_goal_manager
+from agent.short_term_memory import get_short_term_memory
 
 
 class ContextManager:
-    """滑动窗口上下文管理器 + 持久记忆注入"""
+    """滑动窗口上下文管理器 + 持久记忆注入 + 短期记忆文件持久化"""
 
     def __init__(self, db: aiosqlite.Connection):
         self.db = db
@@ -96,22 +98,36 @@ class ContextManager:
             # 异步触发摘要保存（不阻塞当前请求）
             asyncio.create_task(self._auto_summarize(current_count, window_size))
 
+        # 4. 更新短期记忆文件（current.md）
+        try:
+            stm = get_short_term_memory()
+            stm.update_current_window(messages, window_size)
+        except Exception as e:
+            print(f"[Context] 短期记忆更新失败: {e}")
+
         return messages
 
     async def _auto_summarize(self, current_count: int, window_size: int):
         """自动保存会话摘要（窗口接近满载时触发）"""
         try:
+            # 归档当前短期记忆
+            stm = get_short_term_memory()
+            archived = stm.archive_current(label="auto_summarize")
+
             summary = (
                 f"自动摘要 - 会话消息数 {current_count}/{window_size}\n"
                 f"触发时间: {datetime.now().isoformat()}\n"
                 f"原因: 滑动窗口使用率超过 80%，自动保存以防止信息丢失。"
             )
+            if archived:
+                summary += f"\n短期记忆快照: {os.path.basename(archived)}"
+
             self.memory.end_session(summary)
             self.memory.log_evolution(
                 event_type="auto_summarize",
-                description=f"窗口 {current_count}/{window_size}，自动保存摘要",
+                description=f"窗口 {current_count}/{window_size}，自动保存摘要 + 短期记忆快照",
             )
-            print(f"[Context] 自动摘要已保存 ({current_count}/{window_size})")
+            print(f"[Context] 自动摘要已保存 ({current_count}/{window_size})，快照: {os.path.basename(archived) if archived else '无'}")
         except Exception as e:
             print(f"[Context] 自动摘要失败: {e}")
 
@@ -119,6 +135,14 @@ class ContextManager:
         """结束会话，保存摘要到持久记忆"""
         if summary:
             self.memory.end_session(summary)
+        # 归档短期记忆
+        try:
+            stm = get_short_term_memory()
+            archived = stm.archive_current(label="session_end")
+            if archived:
+                print(f"[Context] 短期记忆已归档: {os.path.basename(archived)}")
+        except Exception as e:
+            print(f"[Context] 短期记忆归档失败: {e}")
         # 记录进化：会话结束
         self.memory.log_evolution(
             event_type="session_end",
