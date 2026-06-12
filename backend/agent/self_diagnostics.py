@@ -61,6 +61,7 @@ class SelfDiagnostics:
             ("tool_integrity", self.check_tool_integrity),
             ("memory_health", self.check_memory_health),
             ("goal_health", self.check_goal_health),
+            ("test_results", self.check_test_results),
             ("disk_space", self.check_disk_space),
             ("git_status", self.check_git_status),
             ("feishu_status", self.check_feishu_status),
@@ -184,19 +185,23 @@ class SelfDiagnostics:
                     "持久记忆已就绪，暂无记忆数据"
                 )
 
-            # 尝试读取
+            # 统计条目（从 JSON 文件直接读取）
+            entry_count = 0
             try:
-                from agent.memory import MemoryStore
-                store = MemoryStore(storage_dir=memory_store)
-                entry_count = len(store.entries)
-                session_count = len(store.sessions)
+                for f in json_files:
+                    fpath = os.path.join(memory_store, f)
+                    with open(fpath, "r") as fp:
+                        data = json.load(fp)
+                    if isinstance(data, list):
+                        entry_count += len(data)
+                    elif isinstance(data, dict):
+                        entry_count += len(data.get("entries", data))
             except Exception:
-                entry_count = -1
-                session_count = -1
+                entry_count = len(json_files)  # fallback
 
             return DiagnosticResult(
                 "memory_health", "ok",
-                f"记忆健康: {entry_count} 条, {session_count} 个会话, {total_size/1024:.1f}KB",
+                f"记忆健康: ~{entry_count} 条, {len(json_files)} 个文件, {total_size/1024:.1f}KB",
                 details=f"存储位置: {memory_store}"
             )
 
@@ -412,6 +417,50 @@ class SelfDiagnostics:
             return DiagnosticResult(
                 "snapshot_count", "warn",
                 f"快照检查部分失败: {str(e)}"
+            )
+
+    def check_test_results(self) -> DiagnosticResult:
+        """检查最近一次测试结果"""
+        import subprocess
+        try:
+            workspace = os.path.join(os.path.dirname(self.agent_dir))
+            result = subprocess.run(
+                ["python", "-m", "pytest", "tests/", "--tb=no", "-q"],
+                cwd=os.path.dirname(self.agent_dir),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            output = result.stdout + result.stderr
+            if result.returncode == 0:
+                # 提取通过数
+                passed = "0"
+                for line in output.split("\n"):
+                    if "passed" in line:
+                        passed = line.strip().split()[0]
+                        break
+                return DiagnosticResult(
+                    "test_results", "ok",
+                    f"测试全部通过: {passed} passed",
+                    details=output.strip().split("\n")[-1] if output.strip() else ""
+                )
+            else:
+                return DiagnosticResult(
+                    "test_results", "warn",
+                    f"测试存在失败 (exit={result.returncode})",
+                    details=output.strip()[-200:] if output.strip() else "",
+                    suggestions=["运行 run_self_tests 查看详情", "检查最近修改的代码"]
+                )
+        except FileNotFoundError:
+            return DiagnosticResult(
+                "test_results", "warn",
+                "pytest 未安装或不可用",
+                suggestions=["pip install pytest"]
+            )
+        except Exception as e:
+            return DiagnosticResult(
+                "test_results", "warn",
+                f"无法运行测试: {str(e)[:100]}"
             )
 
     # ── 聚合 ──────────────────────────────────

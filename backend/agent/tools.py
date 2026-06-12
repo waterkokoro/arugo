@@ -1235,6 +1235,7 @@ def run_self_diagnostics(module: str = "", smoke: bool = False) -> str:
             "tool_integrity": diag.check_tool_integrity,
             "memory_health": diag.check_memory_health,
             "goal_health": diag.check_goal_health,
+            "test_results": diag.check_test_results,
             "disk_space": diag.check_disk_space,
             "git_status": diag.check_git_status,
             "feishu_status": diag.check_feishu_status,
