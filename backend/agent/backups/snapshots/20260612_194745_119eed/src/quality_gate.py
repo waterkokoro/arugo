@@ -128,17 +128,17 @@ class QualityGate:
             if target.endswith(".py"):
                 suggestions.append("建议修改后运行 pytest 验证")
             if "agent" in target.lower():
-                risk_level = self._max_risk(risk_level, "medium")
+                risk_level = max(risk_level, "medium")
 
         if operation == "add_tool_to_self":
-            risk_level = self._max_risk(risk_level, "medium")
+            risk_level = max(risk_level, "medium")
             suggestions.append("建议先 validate_tool_syntax 验证语法")
             suggestions.append("建议添加后 hot_reload_tools 热加载")
 
-        # 决定状态（numeric comparison fix）
+        # 决定状态
         if risk_level == "critical":
             status = GateStatus.BLOCK
-        elif risk_level in ("high", "medium"):
+        elif risk_level == "high":
             status = GateStatus.WARN
         else:
             status = GateStatus.PASS
@@ -150,14 +150,6 @@ class QualityGate:
             suggestions=suggestions,
             risk_level=risk_level,
         )
-
-    # 风险等级排序（用于正确比较）
-    _risk_order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
-
-    @classmethod
-    def _max_risk(cls, a, b):
-        """正确比较风险等级"""
-        return a if cls._risk_order.get(a, 0) >= cls._risk_order.get(b, 0) else b
 
     def inline_check(self, code: str, context: dict = None) -> GateResult:
         """
@@ -175,14 +167,14 @@ class QualityGate:
         for pattern, severity, description in self.DANGEROUS_PATTERNS:
             if pattern.lower() in code.lower():
                 issues.append(f"🔴 {description}: 匹配到 '{pattern}'")
-                risk_level = self._max_risk(risk_level, severity)
+                risk_level = max(risk_level, severity)
 
         # 检查代码质量模式
         import re
         for pattern_str, severity, description in self.QUALITY_PATTERNS:
             if re.search(pattern_str, code):
                 issues.append(f"🟡 {description}: 匹配到 '{pattern_str}'")
-                risk_level = self._max_risk(risk_level, severity)
+                risk_level = max(risk_level, severity)
 
         # 基本安全检查
         if "password" in code.lower() or "secret" in code.lower() or "api_key" in code.lower():

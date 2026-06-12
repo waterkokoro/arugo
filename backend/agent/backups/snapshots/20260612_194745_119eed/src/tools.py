@@ -1145,44 +1145,8 @@ _SNAPSHOT_TOOLS = [
     delete_snapshot,
 ]
 
-
-# ============================================================
-# Phase 5A: 自动化测试工具
-# ============================================================
-
-@tool
-def run_self_tests(module: str = "", smoke: bool = False) -> str:
-    """运行自身的自动化测试套件，验证 Agent 各模块健康度。
-
-    测试覆盖：工具完整性、质量门禁、沙盒快照、持久记忆、目标管理器。
-
-    Args:
-        module: 指定测试模块：quality_gate, sandbox, memory, goals, tools。留空运行全部。
-        smoke: True 则只运行快速烟雾测试（<5秒），默认 False
-    """
-    from agent.test_runner import (
-        run_pytest,
-        run_module_tests,
-        quick_smoke_test,
-        format_test_summary,
-    )
-
-    if smoke:
-        result = quick_smoke_test()
-    elif module:
-        result = run_module_tests(module)
-    else:
-        result = run_pytest()
-
-    return format_test_summary(result)
-
-
-_TEST_TOOLS = [
-    run_self_tests,
-]
-
 # 所有工具
-_ALL_TOOLS = _BUILTIN_TOOLS + _GOAL_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS + _SNAPSHOT_TOOLS + _TEST_TOOLS
+_ALL_TOOLS = _BUILTIN_TOOLS + _GOAL_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS + _SNAPSHOT_TOOLS
 
 # 动态工具注册
 try:

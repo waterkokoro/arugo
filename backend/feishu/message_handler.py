@@ -49,7 +49,7 @@ def create_message_handler():
                 # Agent 模式流式收集
                 full_reply = ""
                 async for event in llm_client.agent_stream(
-                    context, max_iterations=15,
+                    context, max_iterations=200,
                     deep_thinking=False,
                     web_search_enabled=True,
                 ):

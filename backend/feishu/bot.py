@@ -237,7 +237,7 @@ class FeishuBot:
     # REST API 发送
     # ================================================================
 
-    async def _add_reaction(self, message_id: str, emoji_type: str = "OK"):
+    async def _add_reaction(self, message_id: str, emoji_type: str = "Typing"):
         """给消息添加表情回复（替代"收到，正在思考..."文字）"""
         if not self._client or not message_id:
             return

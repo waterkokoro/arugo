@@ -35,7 +35,16 @@
       "file_count": 16,
       "total_size": 151894,
       "trigger": "manual"
+    },
+    {
+      "id": "20260612_194745_119eed",
+      "name": "Phase5A 测试框架动工前",
+      "description": "为Phase 5A自动化测试框架创建安全快照",
+      "created_at": "2026-06-12T19:47:45.523400",
+      "file_count": 16,
+      "total_size": 153514,
+      "trigger": "manual"
     }
   ],
-  "updated_at": "2026-06-12T19:18:10.389356"
+  "updated_at": "2026-06-12T19:50:18.310835"
 }
