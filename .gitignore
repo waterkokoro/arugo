@@ -27,9 +27,9 @@ dist/
 # 数据库
 *.db
 
-# 记忆运行时数据
-memory_store/*.jsonl
-memory_store/*.json
+# Agent 运行时数据（记忆/目标/会话）
+backend/agent/memory_store/
+backend/agent/goal_store/
 
 # 备份
 *.bak

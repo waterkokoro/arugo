@@ -14,6 +14,16 @@ logger = logging.getLogger("feishu_api")
 router = APIRouter(prefix="/api/feishu", tags=["feishu"])
 
 
+async def _connect_bot(bot):
+    """后台启动飞书 Bot 连接（不阻塞调用者）"""
+    try:
+        await bot.connect()
+    except asyncio.TimeoutError:
+        logger.warning("[FeishuAPI] Bot 后台连接超时（15s），可能稍后连上")
+    except Exception as e:
+        logger.error(f"[FeishuAPI] Bot 后台连接失败: {e}")
+
+
 class FeishuSettings(BaseModel):
     """飞书配置请求体"""
     enabled: bool = False
@@ -64,7 +74,7 @@ async def update_config(settings: FeishuSettings):
 
     await save_feishu_config(config)
 
-    # 重启 Bot（同步等待连接建立或超时）
+    # 重启 Bot（后台连接，不阻塞 API 响应）
     reset_feishu_bot()
     bot = get_feishu_bot(config)
 
@@ -73,12 +83,8 @@ async def update_config(settings: FeishuSettings):
         from feishu.message_handler import create_message_handler
         bot.set_message_handler(create_message_handler())
 
-        try:
-            await asyncio.wait_for(bot.connect(), timeout=15.0)
-        except asyncio.TimeoutError:
-            logger.warning("[FeishuAPI] Bot 连接超时（15s），可能稍后连上")
-        except Exception as e:
-            logger.error(f"[FeishuAPI] Bot 连接失败: {e}")
+        # 用 create_task 启动后台连接，避免事件循环冲突
+        asyncio.create_task(_connect_bot(bot))
 
     return FeishuStatus(
         enabled=config.enabled,
@@ -105,14 +111,10 @@ async def restart_bot():
         from feishu.message_handler import create_message_handler
         bot.set_message_handler(create_message_handler())
 
-        try:
-            await asyncio.wait_for(bot.connect(), timeout=15.0)
-        except asyncio.TimeoutError:
-            return {"status": "timeout", "message": "连接超时，请检查配置或查看日志"}
-        except Exception as e:
-            return {"status": "error", "message": str(e)[:200]}
+        # 后台启动，不阻塞 API
+        asyncio.create_task(_connect_bot(bot))
 
-    return {"status": "connected" if is_bot_connected() else "unknown"}
+    return {"status": "connecting", "message": "正在后台连接..."}
 
 
 @router.get("/status")

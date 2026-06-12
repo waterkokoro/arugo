@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import asyncio
 from database import init_db
 from routers import settings, chat, feishu
 
@@ -18,24 +19,25 @@ async def lifespan(app: FastAPI):
 
     feishu_config = await get_feishu_config()
     bot = None
+    bot_task = None
 
     if feishu_config.enabled and feishu_config.app_id and feishu_config.app_secret:
         reset_feishu_bot()
         bot = FeishuBot(feishu_config)
         bot.set_message_handler(create_message_handler())
 
-        try:
-            await bot.connect()
-            print(f"[Lifespan] ✅ 飞书机器人已启动 (app_id={feishu_config.app_id[:10]}...)")
-        except Exception as e:
-            print(f"[Lifespan] ⚠️ 飞书机器人启动失败: {e}")
+        # WebSocket connect 是阻塞调用，放入后台任务避免阻塞 HTTP 服务启动
+        bot_task = asyncio.create_task(bot.connect())
+        print(f"[Lifespan] 飞书机器人正在后台连接 (app_id={feishu_config.app_id[:10]}...)")
 
     yield
 
     # 关闭时的清理操作
     if bot and bot.is_running:
-        bot.stop()
+        await bot.stop()
         print("[Lifespan] 飞书机器人已停止")
+    if bot_task and not bot_task.done():
+        bot_task.cancel()
 
 
 app = FastAPI(
@@ -68,4 +70,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

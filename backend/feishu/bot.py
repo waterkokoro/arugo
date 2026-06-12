@@ -112,19 +112,21 @@ class FeishuBot:
         # 启动后台消息处理 Worker
         self._worker_task = asyncio.create_task(self._message_worker())
 
+        # 使用 start_background（异步友好），不阻塞事件循环
         logger.info("[FeishuBot] 正在建立 WebSocket 长连接...")
         try:
-            await self._channel.connect()
+            await self._channel.start_background(timeout=15.0)
+            _write_status(True, self.config.app_id)
+            logger.info("[FeishuBot] ✅ WebSocket 已连接，等待消息...")
+        except asyncio.TimeoutError:
+            logger.warning("[FeishuBot] 连接超时（15s），可能稍后连上")
         except Exception as e:
             self._running = False
             _write_status(False)
             logger.error(f"[FeishuBot] 连接失败: {e}")
             raise
 
-        _write_status(True, self.config.app_id)
-        logger.info("[FeishuBot] ✅ WebSocket 已连接，等待消息...")
-
-    def stop(self):
+    async def stop(self):
         """断开连接，停止 Worker"""
         self._running = False
         _write_status(False)
@@ -133,7 +135,11 @@ class FeishuBot:
             self._worker_task = None
         if self._channel:
             try:
-                self._channel.stop()
+                await self._channel.stop_background()
+            except Exception:
+                pass
+            try:
+                await self._channel.disconnect()
             except Exception:
                 pass
         logger.info("[FeishuBot] 已断开")
