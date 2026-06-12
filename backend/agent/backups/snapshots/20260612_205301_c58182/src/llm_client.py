@@ -167,14 +167,12 @@ class LLMClient:
                 yield f"调用失败: {str(e)}"
         else:
             # 使用 LangChain
-            from agent.config import get_agent_config_float
-            temp = await get_agent_config_float("agent_temperature", 0.7)
             llm = ChatOpenAI(
                 model=config["model_name"],
                 api_key=config["api_key"],
                 base_url=config["base_url"],
                 streaming=True,
-                temperature=temp,
+                temperature=0.7,
             )
             messages = self._build_messages(context)
             async for chunk in llm.astream(messages):
@@ -182,8 +180,8 @@ class LLMClient:
                     yield chunk.content
 
     async def agent_stream(
-        self, context: list, max_iterations: int = None, deep_thinking: bool = None,
-        stop_event: asyncio.Event = None, web_search_enabled: bool = None
+        self, context: list, max_iterations: int = 200, deep_thinking: bool = False,
+        stop_event: asyncio.Event = None, web_search_enabled: bool = True
     ) -> AsyncGenerator[AgentEvent, None]:
         """Agent Loop：支持 Tool Calling 和 DeepSeek 思考模式的多轮对话
 
@@ -200,16 +198,6 @@ class LLMClient:
         if stop_event is None:
             stop_event = asyncio.Event()
         config = await self._get_config()
-
-        # 从 DB 读取未显式传入的参数
-        from agent.config import get_agent_config_int, get_agent_config_float, get_agent_config_bool
-        if max_iterations is None:
-            max_iterations = await get_agent_config_int("agent_max_iterations", 200)
-        if deep_thinking is None:
-            deep_thinking = await get_agent_config_bool("agent_deep_thinking_default", False)
-        if web_search_enabled is None:
-            web_search_enabled = await get_agent_config_bool("agent_web_search_default", True)
-        temperature = await get_agent_config_float("agent_temperature", 0.7)
 
         # 设置工具配置
         set_tool_config(config)
@@ -275,7 +263,7 @@ class LLMClient:
                     request_kwargs["reasoning_effort"] = "high"
                     request_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
                 else:
-                    request_kwargs["temperature"] = temperature
+                    request_kwargs["temperature"] = 0.7
 
                 try:
                     stream = await client.chat.completions.create(**request_kwargs)

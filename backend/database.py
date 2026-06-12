@@ -43,12 +43,22 @@ async def init_db():
             "system_prompt": "You are a helpful assistant.",
             "context_window_size": "500",
             "workspace_dir": "",
-            "allowed_commands": "ls,cat,head,tail,grep,find,git status,git diff,git log,git add,git commit,python,pip,npm,node,pytest",
+            "allowed_commands": "ls,cat,head,tail,grep,find,git status,git diff,git log,git add,git commit,python,pip,npm,node,pytest,git init,git remote,git branch,git push,curl",
             # 联网搜索默认配置
             "search_provider": "auto",
             "search_api_keys": "{}",
             # 飞书机器人默认配置
             "feishu_config": '{"enabled": false, "app_id": "", "app_secret": "", "verification_token": "", "event_types": ["im.message.receive_v1"]}',
+            # ── Agent 定量参数（Phase 5B）──
+            "agent_max_iterations": "200",
+            "agent_temperature": "0.7",
+            "agent_deep_thinking_default": "false",
+            "agent_web_search_default": "true",
+            "context_auto_summarize_threshold": "0.8",
+            "snapshot_max_count": "20",
+            "feishu_text_chunk_size": "1800",
+            "feishu_queue_maxsize": "100",
+            "quality_gate_auto_snapshot": "true",
         }
 
         for key, value in defaults.items():

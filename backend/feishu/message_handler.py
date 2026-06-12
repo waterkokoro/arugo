@@ -62,10 +62,14 @@ def create_message_handler(
 
                 # Agent 模式流式收集
                 full_reply = ""
+                from agent.config import get_agent_config_int, get_agent_config_bool
+                max_iter = await get_agent_config_int("agent_max_iterations", 200)
+                deep = await get_agent_config_bool("agent_deep_thinking_default", False)
+                web = await get_agent_config_bool("agent_web_search_default", True)
                 async for event in llm_client.agent_stream(
-                    context, max_iterations=200,
-                    deep_thinking=False,
-                    web_search_enabled=True,
+                    context, max_iterations=max_iter,
+                    deep_thinking=deep,
+                    web_search_enabled=web,
                 ):
                     if event.type == "content" and event.content:
                         full_reply += event.content
@@ -135,6 +139,10 @@ async def _cmd_status() -> str:
     """进化状态摘要"""
     try:
         from agent.goal_manager import get_goal_manager
+        from agent.tools import get_tools
+        from agent.memory import PersistentMemoryManager
+        from agent.sandbox import get_snapshot_manager
+
         gm = get_goal_manager()
         goals = gm.list_goals()
 
@@ -142,27 +150,20 @@ async def _cmd_status() -> str:
         active = sum(1 for g in goals if g.status == "active")
         completed = sum(1 for g in goals if g.status == "completed")
 
-        from agent.memory import PersistentMemoryManager
         mm = PersistentMemoryManager()
         memory_count = mm.count()
 
-        # 快照数量
-        import os
-        snapshot_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "snapshots"
-        )
-        snapshot_count = 0
-        if os.path.exists(snapshot_dir):
-            snapshot_count = len([
-                f for f in os.listdir(snapshot_dir)
-                if f.endswith(".tar.gz")
-            ])
+        tools = get_tools(web_search_enabled=False)
+        tool_count = len(tools)
+
+        mgr = get_snapshot_manager()
+        snapshots = mgr.list_snapshots()
+        snapshot_count = len(snapshots)
 
         lines = [
             "📊 **阿尔戈进化状态**",
             "",
-            f"🧰 工具：35 个",
+            f"🧰 工具：{tool_count} 个",
             f"🧠 持久记忆：{memory_count} 条",
             f"🎯 目标进度：{completed}/{total} 已完成（{active} 活跃）",
             f"📸 沙盒快照：{snapshot_count} 个",

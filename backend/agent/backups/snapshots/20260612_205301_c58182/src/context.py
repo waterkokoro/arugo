@@ -84,15 +84,10 @@ class ContextManager:
         history = await self.get_messages()
         messages.extend(history)
 
-        # 3. 检查窗口是否接近满载，自动触发摘要保存
+        # 3. 检查窗口是否接近满载（>80%），自动触发摘要保存
         window_size = await self.get_context_window_size()
         current_count = await self._count_messages()
-
-        # 从 DB 读取自动摘要阈值
-        from agent.config import get_agent_config_float
-        threshold = await get_agent_config_float("context_auto_summarize_threshold", 0.8)
-
-        if current_count > window_size * threshold:
+        if current_count > window_size * 0.8:
             # 异步触发摘要保存（不阻塞当前请求）
             asyncio.create_task(self._auto_summarize(current_count, window_size))
 

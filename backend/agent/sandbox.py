@@ -51,8 +51,16 @@ SNAPSHOT_DATA_DIRS = [
     "goal_store",
 ]
 
-# 最大快照数量（超过后自动清理最旧的）
-MAX_SNAPSHOTS = 20
+# 最大快照数量（默认值，运行时会从 DB 读取）
+_MAX_SNAPSHOTS_DEFAULT = 20
+
+async def _get_max_snapshots() -> int:
+    """从 DB 读取最大快照数"""
+    try:
+        from agent.config import get_agent_config_int
+        return await get_agent_config_int("snapshot_max_count", _MAX_SNAPSHOTS_DEFAULT)
+    except Exception:
+        return _MAX_SNAPSHOTS_DEFAULT
 
 
 def _ensure_snapshot_dir():
@@ -119,6 +127,7 @@ class SnapshotManager:
         _ensure_snapshot_dir()
         self._index_path = os.path.join(SNAPSHOT_DIR, "_index.json")
         self._snapshots: dict[str, SnapshotEntry] = {}
+        self._max_snapshots = _MAX_SNAPSHOTS_DEFAULT  # 运行时可更新
         self._load_index()
 
     # ========== 索引管理 ==========
@@ -329,14 +338,14 @@ class SnapshotManager:
 
     def _cleanup_old_snapshots(self):
         """清理超出数量限制的旧快照"""
-        if len(self._snapshots) <= MAX_SNAPSHOTS:
+        if len(self._snapshots) <= self._max_snapshots:
             return
 
         snapshots = sorted(
             self._snapshots.values(),
             key=lambda s: s.created_at,
         )
-        to_delete = snapshots[: len(snapshots) - MAX_SNAPSHOTS]
+        to_delete = snapshots[: len(snapshots) - self._max_snapshots]
 
         for entry in to_delete:
             snapshot_path = os.path.join(SNAPSHOT_DIR, entry.id)
@@ -375,7 +384,7 @@ class SnapshotManager:
 
         lines = [
             f"[沙盒快照系统]",
-            f"快照总数: {len(snapshots)} (最多 {MAX_SNAPSHOTS})",
+            f"快照总数: {len(snapshots)} (最多 {self._max_snapshots})",
             f"  - 手动快照: {manual_count}",
             f"  - 操作前自动快照: {pre_flight_count}",
             f"总占用空间: {total_size / 1024:.1f} KB",
@@ -420,4 +429,31 @@ def get_snapshot_manager() -> SnapshotManager:
     global _snapshot_manager
     if _snapshot_manager is None:
         _snapshot_manager = SnapshotManager()
+        # 尝试从 DB 读取配置
+        _refresh_snapshot_config(_snapshot_manager)
     return _snapshot_manager
+
+
+def _refresh_snapshot_config(mgr: SnapshotManager = None):
+    """刷新快照配置（从 DB 读取）"""
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import asyncio
+            asyncio.create_task(_async_refresh(mgr))
+    except RuntimeError:
+        pass
+
+
+async def _async_refresh(mgr: SnapshotManager = None):
+    if mgr is None:
+        global _snapshot_manager
+        mgr = _snapshot_manager
+    if mgr:
+        mgr._max_snapshots = await _get_max_snapshots()
+
+
+def refresh_snapshot_config():
+    """手动刷新快照配置（settings 更新后调用）"""
+    _refresh_snapshot_config()

@@ -71,7 +71,16 @@
       "file_count": 16,
       "total_size": 175161,
       "trigger": "manual"
+    },
+    {
+      "id": "20260612_205301_c58182",
+      "name": "Phase-5B-迁移参数到SQLite前",
+      "description": "准备将所有硬编码配置参数迁移到 SQLite settings 表。涵盖 llm_client.py, sandbox.py, bot.py, context.py, quality_gate.py 中的定量参数。",
+      "created_at": "2026-06-12T20:53:01.712547",
+      "file_count": 16,
+      "total_size": 182846,
+      "trigger": "manual"
     }
   ],
-  "updated_at": "2026-06-12T20:46:57.266512"
+  "updated_at": "2026-06-12T20:53:01.712563"
 }

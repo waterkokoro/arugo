@@ -5,7 +5,7 @@
         ref="formRef"
         :model="settings"
         :label-placement="'left'"
-        label-width="120"
+        label-width="140"
       >
         <n-form-item label="API Key" path="api_key">
           <n-input
@@ -39,21 +39,71 @@
           />
         </n-form-item>
 
-        <n-form-item label="上下文窗口大小" path="context_window_size">
+        <n-divider title-placement="left">⚙️ Agent 定量参数</n-divider>
+
+        <n-form-item label="最大迭代轮次" path="agent_max_iterations">
           <n-input-number
-            v-model:value="settings.context_window_size"
-            :min="1"
-            :max="1000"
-            placeholder="500"
+            v-model:value="settings.agent_max_iterations"
+            :min="10"
+            :max="500"
           />
           <template #feedback>
-            <span style="color: #999; font-size: 12px;">
-              保留最近 N 条消息作为上下文，默认 500
-            </span>
+            <span class="hint">Agent 工具调用安全上限，防止无限循环。默认 200</span>
           </template>
         </n-form-item>
 
-        <n-divider title-placement="left">Agent 工具配置</n-divider>
+        <n-form-item label="LLM 温度" path="agent_temperature">
+          <n-input-number
+            v-model:value="settings.agent_temperature"
+            :min="0"
+            :max="2"
+            :step="0.1"
+          />
+          <template #feedback>
+            <span class="hint">生成随机性。0=确定, 1=创新, 默认 0.7</span>
+          </template>
+        </n-form-item>
+
+        <n-form-item label="默认深度思考" path="agent_deep_thinking_default">
+          <n-switch v-model:value="settings.agent_deep_thinking_default" />
+          <template #feedback>
+            <span class="hint">开启后每次对话默认使用 DeepSeek 思考模式（消耗更多 token）</span>
+          </template>
+        </n-form-item>
+
+        <n-form-item label="默认联网搜索" path="agent_web_search_default">
+          <n-switch v-model:value="settings.agent_web_search_default" />
+          <template #feedback>
+            <span class="hint">开启后 Agent 默认可使用 web_search 工具</span>
+          </template>
+        </n-form-item>
+
+        <n-divider title-placement="left">📝 上下文与记忆</n-divider>
+
+        <n-form-item label="上下文窗口大小" path="context_window_size">
+          <n-input-number
+            v-model:value="settings.context_window_size"
+            :min="10"
+            :max="5000"
+          />
+          <template #feedback>
+            <span class="hint">保留最近 N 条消息，默认 500</span>
+          </template>
+        </n-form-item>
+
+        <n-form-item label="自动摘要阈值" path="context_auto_summarize_threshold">
+          <n-input-number
+            v-model:value="settings.context_auto_summarize_threshold"
+            :min="0.1"
+            :max="1"
+            :step="0.1"
+          />
+          <template #feedback>
+            <span class="hint">窗口占用超过此比例自动保存摘要到持久记忆。默认 0.8（80%）</span>
+          </template>
+        </n-form-item>
+
+        <n-divider title-placement="left">🛡️ Agent 安全配置</n-divider>
 
         <n-form-item label="工作目录" path="workspace_dir">
           <n-input
@@ -61,9 +111,7 @@
             placeholder="留空则使用项目根目录"
           />
           <template #feedback>
-            <span style="color: #999; font-size: 12px;">
-              Agent 工具只能操作此目录内的文件，防止误操作
-            </span>
+            <span class="hint">Agent 工具只能操作此目录内的文件</span>
           </template>
         </n-form-item>
 
@@ -72,16 +120,31 @@
             v-model:value="settings.allowed_commands"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 4 }"
-            placeholder="ls,cat,head,tail,grep,find,git status,git diff,git log,git add,git commit,python,pip,npm,node,pytest"
           />
           <template #feedback>
-            <span style="color: #999; font-size: 12px;">
-              Agent 可执行的命令白名单，逗号分隔
-            </span>
+            <span class="hint">命令白名单，逗号分隔</span>
           </template>
         </n-form-item>
 
-        <n-divider title-placement="left">联网搜索配置</n-divider>
+        <n-form-item label="最大快照数" path="snapshot_max_count">
+          <n-input-number
+            v-model:value="settings.snapshot_max_count"
+            :min="5"
+            :max="100"
+          />
+          <template #feedback>
+            <span class="hint">沙盒快照保留上限，超出自动清理最旧的。默认 20</span>
+          </template>
+        </n-form-item>
+
+        <n-form-item label="自动快照" path="quality_gate_auto_snapshot">
+          <n-switch v-model:value="settings.quality_gate_auto_snapshot" />
+          <template #feedback>
+            <span class="hint">高风险操作前自动创建快照作为恢复点</span>
+          </template>
+        </n-form-item>
+
+        <n-divider title-placement="left">🔍 联网搜索配置</n-divider>
 
         <n-form-item label="搜索服务商" path="search_provider">
           <n-radio-group v-model:value="settings.search_provider">
@@ -93,68 +156,27 @@
               <n-radio value="anysearch_free">AnySearch Free</n-radio>
             </n-space>
           </n-radio-group>
-          <template #feedback>
-            <span style="color: #999; font-size: 12px;">
-              自动模式会优先使用已配置 Key 的服务商，AnySearch Free 作为兑底
-            </span>
-          </template>
         </n-form-item>
 
         <n-form-item v-if="showKeyInput('tavily')" label="Tavily API Key">
           <n-input-group>
-            <n-input
-              v-model:value="apiKeys.tavily"
-              type="password"
-              show-password-on="click"
-              placeholder="tvly-xxx"
-            />
-            <n-button @click="handleVerifyKey('tavily')" :loading="verifyingKey === 'tavily'">
-              验证
-            </n-button>
+            <n-input v-model:value="apiKeys.tavily" type="password" show-password-on="click" placeholder="tvly-xxx" />
+            <n-button @click="handleVerifyKey('tavily')" :loading="verifyingKey === 'tavily'">验证</n-button>
           </n-input-group>
-          <template #feedback>
-            <span style="color: #999; font-size: 12px;">
-              注册即送 1000次/月：<n-a href="https://tavily.com" target="_blank">申请地址</n-a>
-            </span>
-          </template>
         </n-form-item>
 
         <n-form-item v-if="showKeyInput('serper')" label="Serper API Key">
           <n-input-group>
-            <n-input
-              v-model:value="apiKeys.serper"
-              type="password"
-              show-password-on="click"
-              placeholder="serper key"
-            />
-            <n-button @click="handleVerifyKey('serper')" :loading="verifyingKey === 'serper'">
-              验证
-            </n-button>
+            <n-input v-model:value="apiKeys.serper" type="password" show-password-on="click" placeholder="serper key" />
+            <n-button @click="handleVerifyKey('serper')" :loading="verifyingKey === 'serper'">验证</n-button>
           </n-input-group>
-          <template #feedback>
-            <span style="color: #999; font-size: 12px;">
-              注册送 2500 次，中文搜索最好：<n-a href="https://serper.dev" target="_blank">申请地址</n-a>
-            </span>
-          </template>
         </n-form-item>
 
         <n-form-item v-if="showKeyInput('brave')" label="Brave API Key">
           <n-input-group>
-            <n-input
-              v-model:value="apiKeys.brave"
-              type="password"
-              show-password-on="click"
-              placeholder="brave key"
-            />
-            <n-button @click="handleVerifyKey('brave')" :loading="verifyingKey === 'brave'">
-              验证
-            </n-button>
+            <n-input v-model:value="apiKeys.brave" type="password" show-password-on="click" placeholder="brave key" />
+            <n-button @click="handleVerifyKey('brave')" :loading="verifyingKey === 'brave'">验证</n-button>
           </n-input-group>
-          <template #feedback>
-            <span style="color: #999; font-size: 12px;">
-              免费 2000次/月：<n-a href="https://brave.com/search/api/" target="_blank">申请地址</n-a>
-            </span>
-          </template>
         </n-form-item>
 
         <n-divider title-placement="left">🦜 飞书机器人配置</n-divider>
@@ -162,37 +184,44 @@
         <n-form-item label="启用飞书机器人">
           <n-switch v-model:value="feishu.enabled" />
           <template #feedback>
-            <span style="color: #999; font-size: 12px;">
+            <span class="hint">
               使用 WebSocket 长连接模式，无需公网 IP。需先在
-              <n-a href="https://open.feishu.cn/app" target="_blank">飞书开放平台</n-a>
-              创建企业自建应用。
+              <n-a href="https://open.feishu.cn/app" target="_blank">飞书开放平台</n-a> 创建企业自建应用。
             </span>
           </template>
         </n-form-item>
 
         <n-form-item v-if="feishu.enabled" label="App ID">
-          <n-input
-            v-model:value="feishu.app_id"
-            placeholder="cli_xxxxxxxxxxxx"
-          />
+          <n-input v-model:value="feishu.app_id" placeholder="cli_xxxxxxxxxxxx" />
         </n-form-item>
 
         <n-form-item v-if="feishu.enabled" label="App Secret">
-          <n-input
-            v-model:value="feishu.app_secret"
-            type="password"
-            show-password-on="click"
-            placeholder="飞书应用 App Secret"
-          />
+          <n-input v-model:value="feishu.app_secret" type="password" show-password-on="click" placeholder="飞书应用 App Secret" />
         </n-form-item>
 
         <n-form-item v-if="feishu.enabled" label="验证 Token">
-          <n-input
-            v-model:value="feishu.verification_token"
-            type="password"
-            show-password-on="click"
-            placeholder="事件订阅 Verification Token（可选）"
-          />
+          <n-input v-model:value="feishu.verification_token" type="password" show-password-on="click" placeholder="事件订阅 Verification Token（可选）" />
+        </n-form-item>
+
+        <!-- 飞书定量参数（高级） -->
+        <template v-if="feishu.enabled && showFeishuAdvanced">
+          <n-form-item label="消息分段大小">
+            <n-input-number v-model:value="settings.feishu_text_chunk_size" :min="500" :max="5000" :step="100" />
+            <template #feedback>
+              <span class="hint">飞书单条消息上限约 2000 字符，超长回复按此大小分段。默认 1800</span>
+            </template>
+          </n-form-item>
+          <n-form-item label="消息队列容量">
+            <n-input-number v-model:value="settings.feishu_queue_maxsize" :min="10" :max="500" />
+            <template #feedback>
+              <span class="hint">积压消息队列上限，超过丢弃并提示用户。默认 100</span>
+            </template>
+          </n-form-item>
+        </template>
+        <n-form-item v-if="feishu.enabled">
+          <n-button text size="small" @click="showFeishuAdvanced = !showFeishuAdvanced">
+            {{ showFeishuAdvanced ? '收起高级设置 ▲' : '展开高级设置 ▼' }}
+          </n-button>
         </n-form-item>
 
         <n-form-item v-if="feishu.enabled && feishuStatus.configured">
@@ -200,20 +229,14 @@
             <n-tag :type="feishuStatus.connected ? 'success' : 'warning'" size="small">
               {{ feishuStatus.connected ? '🟢 已连接' : '🟡 未连接' }}
             </n-tag>
-            <n-button size="small" @click="handleRestartFeishu" :loading="restarting">
-              重启机器人
-            </n-button>
+            <n-button size="small" @click="handleRestartFeishu" :loading="restarting">重启机器人</n-button>
           </n-space>
         </n-form-item>
 
         <n-form-item>
           <n-space>
-            <n-button type="primary" @click="handleSave" :loading="saving">
-              保存配置
-            </n-button>
-            <n-button @click="handleReset">
-              重置
-            </n-button>
+            <n-button type="primary" @click="handleSave" :loading="saving">保存配置</n-button>
+            <n-button @click="handleReset">重置</n-button>
           </n-space>
         </n-form-item>
       </n-form>
@@ -239,24 +262,28 @@ const defaultSettings: Settings = {
   model_name: 'gpt-3.5-turbo',
   system_prompt: 'You are a helpful assistant.',
   context_window_size: 500,
+  context_auto_summarize_threshold: 0.8,
   workspace_dir: '',
-  allowed_commands: 'ls,cat,head,tail,grep,find,git status,git diff,git log,git add,git commit,python,pip,npm,node,pytest',
+  allowed_commands: 'ls,cat,head,tail,grep,find,git status,git diff,git log,git add,git commit,python,pip,npm,node,pytest,git init,git remote,git branch,git push,curl',
+  agent_max_iterations: 200,
+  agent_temperature: 0.7,
+  agent_deep_thinking_default: false,
+  agent_web_search_default: true,
   search_provider: 'auto',
   search_api_keys: '{}',
+  snapshot_max_count: 20,
+  feishu_text_chunk_size: 1800,
+  feishu_queue_maxsize: 100,
+  quality_gate_auto_snapshot: true,
 }
 
 const settings = ref<Settings>({ ...defaultSettings })
 const saving = ref(false)
 const verifyingKey = ref<string | null>(null)
+const showFeishuAdvanced = ref(false)
 
-// 解析 search_api_keys JSON 为响应式对象
-const apiKeys = reactive<Record<string, string>>({
-  tavily: '',
-  serper: '',
-  brave: '',
-})
+const apiKeys = reactive<Record<string, string>>({ tavily: '', serper: '', brave: '' })
 
-// 根据当前服务商选择显示哪些 Key 输入框
 function showKeyInput(provider: string): boolean {
   const sp = settings.value.search_provider
   return sp === 'auto' || sp === provider
@@ -265,45 +292,33 @@ function showKeyInput(provider: string): boolean {
 async function loadSettings() {
   try {
     const response = await settingsApi.get()
-    settings.value = response.data
-    // 解析 api keys
+    settings.value = { ...defaultSettings, ...response.data }
     try {
       const keys = JSON.parse(response.data.search_api_keys || '{}')
       apiKeys.tavily = keys.tavily || ''
       apiKeys.serper = keys.serper || ''
       apiKeys.brave = keys.brave || ''
-    } catch {
-      // ignore
-    }
-  } catch (error) {
+    } catch { /* ignore */ }
+  } catch {
     message.error('加载配置失败')
   }
 }
 
 async function handleSave() {
-  // 将 apiKeys 序列化到 settings
   settings.value.search_api_keys = JSON.stringify({
-    tavily: apiKeys.tavily,
-    serper: apiKeys.serper,
-    brave: apiKeys.brave,
+    tavily: apiKeys.tavily, serper: apiKeys.serper, brave: apiKeys.brave,
   })
   saving.value = true
   try {
     await settingsApi.update(settings.value)
-    // 同时保存飞书配置
     if (feishu.enabled) {
       await feishuApi.updateConfig({
-        enabled: feishu.enabled,
-        app_id: feishu.app_id,
-        app_secret: feishu.app_secret,
-        verification_token: feishu.verification_token,
+        enabled: feishu.enabled, app_id: feishu.app_id,
+        app_secret: feishu.app_secret, verification_token: feishu.verification_token,
       })
     } else {
       await feishuApi.updateConfig({
-        enabled: false,
-        app_id: feishu.app_id,
-        app_secret: '',
-        verification_token: '',
+        enabled: false, app_id: feishu.app_id, app_secret: '', verification_token: '',
       })
     }
     message.success('配置已保存')
@@ -317,42 +332,18 @@ async function handleSave() {
 
 async function handleVerifyKey(provider: string) {
   const key = apiKeys[provider]
-  if (!key) {
-    message.warning('请先输入 API Key')
-    return
-  }
+  if (!key) { message.warning('请先输入 API Key'); return }
   verifyingKey.value = provider
   try {
     const res = await settingsApi.verifySearchKey(provider, key)
-    if (res.data.valid) {
-      message.success(`${provider} API Key 验证通过`)
-    } else {
-      message.error(`${provider} API Key 无效`)
-    }
-  } catch {
-    message.error(`${provider} API Key 验证失败`)
-  } finally {
-    verifyingKey.value = null
-  }
+    if (res.data.valid) message.success(`${provider} API Key 验证通过`)
+    else message.error(`${provider} API Key 无效`)
+  } catch { message.error(`${provider} API Key 验证失败`) }
+  finally { verifyingKey.value = null }
 }
 
-// ========================================
-// 飞书配置
-// ========================================
-const feishu = reactive({
-  enabled: false,
-  app_id: '',
-  app_secret: '',
-  verification_token: '',
-})
-const feishuStatus = ref<FeishuStatus>({
-  enabled: false,
-  app_id: '',
-  has_secret: false,
-  has_verification_token: false,
-  connected: false,
-  event_types: [],
-})
+const feishu = reactive({ enabled: false, app_id: '', app_secret: '', verification_token: '' })
+const feishuStatus = ref<FeishuStatus>({ enabled: false, app_id: '', has_secret: false, has_verification_token: false, connected: false, event_types: [] })
 const restarting = ref(false)
 
 async function loadFeishuConfig() {
@@ -361,10 +352,7 @@ async function loadFeishuConfig() {
     feishuStatus.value = res.data
     feishu.enabled = res.data.enabled
     feishu.app_id = res.data.app_id
-    // secret 不填充，需要用户重新输入
-  } catch {
-    // 忽略
-  }
+  } catch { /* ignore */ }
 }
 
 async function handleRestartFeishu() {
@@ -372,36 +360,21 @@ async function handleRestartFeishu() {
   try {
     const res = await feishuApi.restart()
     message.info(res.data.message)
-    // 刷新状态
     await loadFeishuConfig()
-  } catch {
-    message.error('重启失败')
-  } finally {
-    restarting.value = false
-  }
+  } catch { message.error('重启失败') }
+  finally { restarting.value = false }
 }
 
 function handleReset() {
   settings.value = { ...defaultSettings }
-  apiKeys.tavily = ''
-  apiKeys.serper = ''
-  apiKeys.brave = ''
-  feishu.enabled = false
-  feishu.app_id = ''
-  feishu.app_secret = ''
-  feishu.verification_token = ''
+  apiKeys.tavily = ''; apiKeys.serper = ''; apiKeys.brave = ''
+  feishu.enabled = false; feishu.app_id = ''; feishu.app_secret = ''; feishu.verification_token = ''
 }
 
-onMounted(() => {
-  loadSettings()
-  loadFeishuConfig()
-})
+onMounted(() => { loadSettings(); loadFeishuConfig() })
 </script>
 
 <style scoped>
-.settings-view {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 24px;
-}
+.settings-view { max-width: 640px; margin: 0 auto; padding: 24px; }
+.hint { color: #999; font-size: 12px; }
 </style>

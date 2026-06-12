@@ -277,18 +277,6 @@ class QualityGate:
             result: 操作结果（用于 post 检查）
             context: 额外上下文
             auto_snapshot: 高风险操作前是否自动创建快照（默认 True）
-                        可在调用前通过 agent.config 查询 quality_gate_auto_snapshot
-        """
-        """
-        执行完整的三阶段质量门禁检查。
-
-        Args:
-            operation: 操作类型
-            target: 操作目标
-            code: 代码内容（用于 inline 检查）
-            result: 操作结果（用于 post 检查）
-            context: 额外上下文
-            auto_snapshot: 高风险操作前是否自动创建快照（默认 True）
 
         Returns:
             {

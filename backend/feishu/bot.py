@@ -69,7 +69,7 @@ class FeishuBot:
         self._channel = None          # WebSocket channel（只收）
         self._client: Optional[lark.Client] = None  # REST client（只发）
         self._running = False
-        self._message_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+        self._message_queue: asyncio.Queue = None   # 延迟创建，从 DB 读取容量
         self._worker_task: Optional[asyncio.Task] = None
         # 消息处理器工厂: (sender_id, text, progress_callback) -> reply
         self._handler_factory: Optional[Callable] = None
@@ -94,6 +94,13 @@ class FeishuBot:
         if not self.config.app_id or not self.config.app_secret:
             logger.warning("[FeishuBot] 缺少 App ID/Secret，跳过")
             return
+
+        # 从 DB 读取队列容量和分段大小
+        from agent.config import get_agent_config_int
+        queue_size = await get_agent_config_int("feishu_queue_maxsize", 100)
+        self._chunk_size = await get_agent_config_int("feishu_text_chunk_size", 1800)
+        self._message_queue = asyncio.Queue(maxsize=queue_size)
+        logger.info(f"[FeishuBot] 消息队列容量: {queue_size}, 分段大小: {self._chunk_size}")
 
         from lark_oapi.channel import FeishuChannel
 
@@ -349,9 +356,9 @@ class FeishuBot:
             return str(sender)
         return 'unknown'
 
-    @staticmethod
-    def _split_text(text: str, max_len: int = 1800) -> list:
-        """将长文本按最大长度分段"""
+    def _split_text(self, text: str) -> list:
+        """将长文本按最大长度分段（使用 DB 配置的分段大小）"""
+        max_len = getattr(self, '_chunk_size', 1800)
         if len(text) <= max_len:
             return [text]
         return [text[i:i+max_len] for i in range(0, len(text), max_len)]

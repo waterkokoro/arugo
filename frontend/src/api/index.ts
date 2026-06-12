@@ -12,10 +12,19 @@ export interface Settings {
   model_name: string
   system_prompt: string
   context_window_size: number
+  context_auto_summarize_threshold: number
   workspace_dir: string
   allowed_commands: string
+  agent_max_iterations: number
+  agent_temperature: number
+  agent_deep_thinking_default: boolean
+  agent_web_search_default: boolean
   search_provider: string
   search_api_keys: string  // JSON 字符串
+  snapshot_max_count: number
+  feishu_text_chunk_size: number
+  feishu_queue_maxsize: number
+  quality_gate_auto_snapshot: boolean
 }
 
 export const settingsApi = {
