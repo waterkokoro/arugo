@@ -98,7 +98,7 @@ class FeishuBot:
         # 从 DB 读取队列容量和分段大小
         from agent.config import get_agent_config_int
         queue_size = await get_agent_config_int("feishu_queue_maxsize", 100)
-        self._chunk_size = await get_agent_config_int("feishu_text_chunk_size", 1800)
+        self._chunk_size = await get_agent_config_int("feishu_text_chunk_size", 15000)
         self._message_queue = asyncio.Queue(maxsize=queue_size)
         logger.info(f"[FeishuBot] 消息队列容量: {queue_size}, 分段大小: {self._chunk_size}")
 
@@ -272,22 +272,25 @@ class FeishuBot:
             logger.warning(f"[FeishuBot] 表情回复异常: {e}")
 
     async def _reply_via_rest(self, message_id: str, text: str):
-        """通过飞书 REST API 回复消息，自动分段"""
+        """通过飞书 REST API 回复消息，使用 Markdown 交互卡片"""
         if not self._client or not message_id:
             return
 
-        # 长文本分段发送
-        chunks = self._split_text(text)
+        chunks = self._split_markdown(text)
         for i, chunk in enumerate(chunks):
-            prefix = f"[{i+1}/{len(chunks)}]\n" if len(chunks) > 1 else ""
+            prefix = f"**[{i+1}/{len(chunks)}]**\n" if len(chunks) > 1 else ""
             try:
-                content = json.dumps({"text": prefix + chunk})
+                content = json.dumps({
+                    "elements": [
+                        {"tag": "markdown", "content": prefix + chunk}
+                    ]
+                })
                 request = (
                     ReplyMessageRequest.builder()
                     .message_id(message_id)
                     .request_body(
                         ReplyMessageRequestBody.builder()
-                        .msg_type("text")
+                        .msg_type("interactive")
                         .content(content)
                         .build()
                     )
@@ -356,12 +359,58 @@ class FeishuBot:
             return str(sender)
         return 'unknown'
 
-    def _split_text(self, text: str) -> list:
-        """将长文本按最大长度分段（使用 DB 配置的分段大小）"""
-        max_len = getattr(self, '_chunk_size', 1800)
+    def _split_markdown(self, text: str) -> list:
+        """将 Markdown 文本按段落边界智能分段，避免打断代码块/表格"""
+        max_len = getattr(self, '_chunk_size', 15000)
         if len(text) <= max_len:
             return [text]
-        return [text[i:i+max_len] for i in range(0, len(text), max_len)]
+
+        chunks = []
+        remaining = text
+        while len(remaining) > max_len:
+            # 在 max_len 范围内找最佳切割点
+            search_range = remaining[:max_len]
+
+            # 优先级: 段落边界 > 行边界 > 句子边界 > 硬切割
+            cut = None
+            # 1) 找最近的代码块结束 ```
+            for marker in ['\n```\n', '\n---\n', '\n\n']:
+                pos = search_range.rfind(marker)
+                if pos > max_len * 0.6:
+                    cut = pos + len(marker)
+                    break
+
+            # 2) 段落边界
+            if cut is None:
+                pos = search_range.rfind('\n\n')
+                if pos > max_len * 0.6:
+                    cut = pos + 2
+
+            # 3) 行边界
+            if cut is None:
+                pos = search_range.rfind('\n')
+                if pos > max_len * 0.6:
+                    cut = pos + 1
+
+            # 4) 句子边界
+            if cut is None:
+                for punct in ['. ', '。', '！', '？', '\n']:
+                    pos = search_range.rfind(punct)
+                    if pos > max_len * 0.6:
+                        cut = pos + len(punct)
+                        break
+
+            # 5) 硬切割
+            if cut is None or cut < max_len * 0.3:
+                cut = max_len
+
+            chunks.append(remaining[:cut].strip())
+            remaining = remaining[cut:].strip()
+
+        if remaining:
+            chunks.append(remaining)
+
+        return chunks
 
 
 # ================================================================
