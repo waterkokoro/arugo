@@ -609,7 +609,7 @@ def add_tool_to_self(tool_name: str, tool_code: str, category: str = "generated"
         tool_code: 完整的 @tool 装饰的函数代码（不含 import 语句）
         category: 工具类别，如 "memory", "evolution", "io", "network", "agent"
     """
-    from agent.tool_registry import validate_tool_code, reload_tools, ToolDef as _ToolDef
+    from agent.tool_registry import validate_tool_code, reload_tools
     
     config = get_tool_config()
     workspace_dir = get_workspace_dir(config)
@@ -629,12 +629,12 @@ def add_tool_to_self(tool_name: str, tool_code: str, category: str = "generated"
     if f"def {tool_name}(" in existing_code:
         return f"⚠️ 工具 '{tool_name}' 已存在于 tools.py 中。请使用 edit_file 修改现有代码。"
     
-    # 3. 定位插入位置（函数体插入到 _ALL_TOOLS 之前）
+    # 3. 定位插入位置
     insertion_marker = "# 所有工具\n_ALL_TOOLS"
     if insertion_marker not in existing_code:
         return f"❌ 无法在 tools.py 中定位工具列表插入位置，代码结构可能已变更。\n备份文件: {backup_path}"
     
-    # 4. 构建要插入的函数代码块
+    # 4. 构建要插入的代码块
     new_tool_block = f'''
 
 # ============================================================
@@ -646,50 +646,23 @@ def add_tool_to_self(tool_name: str, tool_code: str, category: str = "generated"
 
 '''
     
-    # 5. 第一步写入：插入函数体
+    # 5. 写入文件
     new_code = existing_code.replace(insertion_marker, new_tool_block + "\n" + insertion_marker)
     
-    # 6. 第二步：在 get_tools 之前插入 _ALL_TOOLS 注册代码
-    registration_marker = "def get_tools(web_search_enabled: bool = True) -> list:"
-    if registration_marker not in new_code:
-        # 回退
-        with open(tools_path, "w", encoding="utf-8") as f:
-            f.write(existing_code)  # 恢复原文件
-        return f"❌ 无法定位注册插入点，代码结构可能已变更。已恢复原文件。\n备份: {backup_path}"
-    
-    registration_block = '''
-# 动态工具注册: {name}
-try:
-    _ALL_TOOLS.append({name})
-    get_tool_registry().register(_ToolDef(
-        name="{name}",
-        description={name}.description if hasattr({name}, 'description') else "",
-        func={name},
-        source="generated",
-        category="{cat}",
-    ))
-    print("[SelfEvo] 工具 \\\"{name}\\\" 已注册")
-except Exception as e:
-    print(f"[SelfEvo] 工具 \\\"{name}\\\" 注册失败: {{e}}")
-
-'''.format(name=tool_name, cat=category)
-    new_code = new_code.replace(registration_marker, registration_block + registration_marker)
-    
-    # 7. 写入最终文件
     with open(tools_path, "w", encoding="utf-8") as f:
         f.write(new_code)
     
-    # 8. 保存配置到注册表
+    # 6. 保存配置到注册表
     registry = get_tool_registry()
     registry.save_tool_config(tool_name, tool_code[:200], category)
     
-    # 9. 热加载：使新工具立即可用
+    # 7. 热加载：使新工具立即可用
     reload_result = reload_tools()
     
     log_evolution_event.func("tool_added", f"通过 add_tool_to_self 添加工具: {tool_name} (类别: {category})")
     
     result_lines = [
-        f"✅ 工具 '{tool_name}' 已添加并注册到 _ALL_TOOLS！",
+        f"✅ 工具 '{tool_name}' 已添加并通过热加载生效！",
         f"   验证: {validation_msg}",
         f"   热加载: {reload_result['message']}",
         f"   备份: {os.path.basename(backup_path)}",
@@ -1295,8 +1268,6 @@ _DIAGNOSTICS_TOOLS = [
     run_self_diagnostics,
     health_check,
 ]
-
-
 
 # 所有工具
 _ALL_TOOLS = _BUILTIN_TOOLS + _GOAL_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS + _SNAPSHOT_TOOLS + _TEST_TOOLS + _DIAGNOSTICS_TOOLS

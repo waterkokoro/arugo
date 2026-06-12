@@ -62,7 +62,16 @@
       "file_count": 16,
       "total_size": 173680,
       "trigger": "manual"
+    },
+    {
+      "id": "20260612_202024_0cdef9",
+      "name": "Phase6A-add_tool_to_self修复前",
+      "description": "准备修复 add_tool_to_self 的注册问题",
+      "created_at": "2026-06-12T20:20:24.418744",
+      "file_count": 16,
+      "total_size": 175161,
+      "trigger": "manual"
     }
   ],
-  "updated_at": "2026-06-12T19:57:32.803907"
+  "updated_at": "2026-06-12T20:20:24.418756"
 }
