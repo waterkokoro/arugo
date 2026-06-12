@@ -25,6 +25,7 @@ export interface Settings {
   feishu_text_chunk_size: number
   feishu_queue_maxsize: number
   quality_gate_auto_snapshot: boolean
+  restrict_paths: boolean
 }
 
 export const settingsApi = {

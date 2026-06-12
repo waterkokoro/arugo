@@ -32,6 +32,11 @@ def get_workspace_dir(db_config: dict) -> str:
 def validate_path(path: str, workspace_dir: str) -> tuple[bool, str]:
     try:
         abs_path = os.path.abspath(path)
+        # 检查是否启用了路径限制
+        config = _tool_config if _tool_config else {}
+        restrict = config.get("restrict_paths", True)
+        if not restrict:
+            return True, abs_path
         if not abs_path.startswith(workspace_dir):
             return False, f"路径 {path} 不在允许的工作目录 {workspace_dir} 内"
         return True, abs_path
@@ -442,19 +447,22 @@ def log_evolution_event(event_type: str, description: str) -> str:
 # ============================================================
 
 from agent.agent_factory import get_agent_factory
-from openai import AsyncOpenAI
+from agent.agent_factory import list_role_templates, ROLE_TEMPLATES
 
 
 @tool
 async def invoke_sub_agent(agent_name: str, task: str) -> str:
-    """调用一个已创建的子Agent执行特定任务。子Agent使用其专属system_prompt进行单轮推理。
+    """调用一个已创建的子Agent执行特定任务。子Agent使用其专属system_prompt进行多轮工具调用。
 
     适用场景：代码审查、测试生成、文档撰写、专业分析等可委派任务。
+    子Agent拥有完整的工具调用循环（不再是单次LLM回复），可自主使用分配的工具完成任务。
 
     Args:
         agent_name: 子Agent名称或ID（通过 list_sub_agents 查看）
         task: 委派给子Agent的任务描述，越详细越好
     """
+    from agent.agent_runtime import AgentRuntime
+    
     factory = get_agent_factory()
     
     # 查找子Agent（先按名称，再按ID）
@@ -468,64 +476,102 @@ async def invoke_sub_agent(agent_name: str, task: str) -> str:
     
     config = get_tool_config()
     
-    # 创建临时客户端
-    try:
-        client = AsyncOpenAI(
-            api_key=config.get("api_key", ""),
-            base_url=config.get("base_url", "https://api.openai.com/v1"),
-        )
-    except Exception as e:
-        return f"❌ 创建LLM客户端失败: {str(e)}"
+    # 限制子Agent的最大迭代次数（防止无限循环）
+    sub_max_iterations = min(
+        int(config.get("agent_max_iterations", 200)) // 4,  # 子Agent 不超过主Agent的 1/4
+        50,
+    )
     
-    messages = [
-        {"role": "system", "content": agent.system_prompt},
-        {"role": "user", "content": task},
-    ]
+    # 创建运行时
+    runtime = AgentRuntime(
+        agent_name=agent.name,
+        agent_id=agent.id,
+        system_prompt=agent.system_prompt,
+        tool_names=agent.tools if agent.tools else None,  # None=全部工具，[]=限制工具
+        max_iterations=sub_max_iterations,
+    )
+    
+    # 标记状态
+    agent.status = "running"
+    factory._save()
+    
+    # 收集结果
+    content_parts = []
+    tool_calls_made = []
     
     try:
-        response = await client.chat.completions.create(
-            model=config.get("model_name", "gpt-3.5-turbo"),
-            messages=messages,
-            temperature=0.7,
-            max_tokens=4096,
-        )
-        result = response.choices[0].message.content
+        async for event in runtime.run(task, config):
+            if event.type == "content" and event.content:
+                content_parts.append(event.content)
+            elif event.type == "tool_call":
+                tool_calls_made.append(event.tool)
+            elif event.type == "error":
+                content_parts.append(f"\n[错误] {event.content}")
         
-        # 标记子Agent被使用
+        final_result = "".join(content_parts).strip()
+        
+        # 标记使用
         factory.mark_used(agent.id)
         
         # 记录进化事件
         mem = _get_memory()
         mem.log_evolution(
             "sub_agent_invoked",
-            f"子Agent '{agent.name}' 被调用执行任务: {task[:80]}",
+            f"子Agent '{agent.name}' 执行任务({len(tool_calls_made)}次工具调用): {task[:80]}",
         )
         
-        return f"[子Agent: {agent.name} (ID: {agent.id})]\n\n{result}"
+        tool_summary = f"\n🔧 工具调用({len(tool_calls_made)}): {', '.join(tool_calls_made[:10])}" if tool_calls_made else ""
+        
+        return f"[子Agent: {agent.name} (ID: {agent.id})]{tool_summary}\n\n{final_result or '(Agent 未返回文本结果)'}"
     except Exception as e:
-        return f"❌ 子Agent调用失败: {str(e)}"
+        agent.status = "error"
+        factory._save()
+        return f"❌ 子Agent执行失败: {str(e)}"
 
 
 @tool
-def create_sub_agent(name: str, system_prompt: str, description: str = "", tools: str = "") -> str:
+def create_sub_agent(name: str, system_prompt: str, description: str = "", tools: str = "", role_template: str = "", persistent: bool = True) -> str:
     """创建一个专门用途的子Agent，用于委派特定任务。创建后可用 invoke_sub_agent 调用。
 
     Args:
         name: 子Agent名称（如 "code_reviewer", "test_writer"）
         system_prompt: 子Agent的系统提示词，定义其角色和行为
         description: 子Agent的简短描述
-        tools: 分配给子Agent的工具名称列表，逗号分隔。留空则使用基础工具集。
-              可用工具: read_file, write_file, edit_file, list_directory, run_command, remember, recall_memory
+        tools: 分配给子Agent的工具名称列表，逗号分隔。留空则使用全部工具。
+              可用工具: read_file, write_file, edit_file, list_directory, run_command, remember, recall_memory, web_search, ...
+        role_template: 角色模板名（finance_agent, code_engineer, code_reviewer, test_writer, researcher, devops_engineer, product_manager），填写后忽略 system_prompt
+        persistent: 是否跨会话保持记忆，默认 True
     """
     factory = get_agent_factory()
+    
+    # 如果指定了模板，从模板创建
+    if role_template:
+        agent = factory.create_from_template(role_template, custom_name=name)
+        if not agent:
+            available = ", ".join(ROLE_TEMPLATES.keys())
+            return f"❌ 未知模板: {role_template}\n可用: {available}"
+        return (
+            f"✅ 子Agent '{agent.name}' 从模板 🎭{role_template} 创建 (ID: {agent.id})\n"
+            f"   描述: {agent.description}\n"
+            f"   工具: {', '.join(agent.tools) if agent.tools else '全部工具'}\n"
+            f"   持久记忆: {'✅' if agent.persistent else '❌'}"
+        )
+    
     tool_list = [t.strip() for t in tools.split(",") if t.strip()] if tools else []
     agent = factory.create(
         name=name,
         system_prompt=system_prompt,
         description=description,
         tools=tool_list,
+        persistent=persistent,
     )
-    return f"子Agent '{name}' 已创建 (ID: {agent.id})\n描述: {description}\n可用工具: {', '.join(tool_list) if tool_list else '基础工具集'}"
+    tool_label = ', '.join(tool_list) if tool_list else '全部工具'
+    return (
+        f"✅ 子Agent '{name}' 已创建 (ID: {agent.id})\n"
+        f"   描述: {description}\n"
+        f"   工具: {tool_label}\n"
+        f"   持久记忆: {'✅' if persistent else '❌'}"
+    )
 
 
 @tool
@@ -563,6 +609,15 @@ def generate_agent_config(purpose: str, expertise: str, tools_needed: str = "") 
     factory = get_agent_factory()
     tool_list = [t.strip() for t in tools_needed.split(",") if t.strip()] if tools_needed else None
     return factory.generate_agent_config(purpose, expertise, tool_list)
+
+
+@tool
+def list_agent_roles() -> str:
+    """列出所有预定义的 Agent 角色模板，可直接用于 create_sub_agent 的 role_template 参数。
+
+    含 7 个专业角色：财务专家、软件工程师、代码审查员、测试工程师、研究员、运维工程师、产品经理
+    """
+    return list_role_templates()
 
 
 # ============================================================
@@ -924,6 +979,7 @@ _AGENT_FACTORY_TOOLS = [
     list_sub_agents,
     delete_sub_agent,
     generate_agent_config,
+    list_agent_roles,
     invoke_sub_agent,
 ]
 

@@ -126,6 +126,13 @@
           </template>
         </n-form-item>
 
+        <n-form-item label="路径限制" path="restrict_paths">
+          <n-switch v-model:value="settings.restrict_paths" />
+          <template #feedback>
+            <span class="hint">开启后 Agent 文件操作仅限工作目录内。关闭后可访问系统任意路径（⚠️ 注意安全）</span>
+          </template>
+        </n-form-item>
+
         <n-form-item label="最大快照数" path="snapshot_max_count">
           <n-input-number
             v-model:value="settings.snapshot_max_count"
@@ -275,6 +282,7 @@ const defaultSettings: Settings = {
   feishu_text_chunk_size: 1800,
   feishu_queue_maxsize: 100,
   quality_gate_auto_snapshot: true,
+  restrict_paths: true,
 }
 
 const settings = ref<Settings>({ ...defaultSettings })

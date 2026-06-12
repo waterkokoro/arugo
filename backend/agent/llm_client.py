@@ -96,6 +96,7 @@ class LLMClient:
             "system_prompt": config.get("system_prompt", "You are a helpful assistant."),
             "workspace_dir": config.get("workspace_dir", ""),
             "allowed_commands": config.get("allowed_commands", ""),
+            "restrict_paths": config.get("restrict_paths", "true").lower() in ("true", "1", "yes"),
         }
         return client
 
@@ -113,6 +114,7 @@ class LLMClient:
                 "system_prompt": config.get("system_prompt", "You are a helpful assistant."),
                 "workspace_dir": config.get("workspace_dir", ""),
                 "allowed_commands": config.get("allowed_commands", ""),
+                "restrict_paths": config.get("restrict_paths", "true").lower() in ("true", "1", "yes"),
             }
 
     def _build_messages(self, context: list) -> list:

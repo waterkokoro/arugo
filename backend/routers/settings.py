@@ -38,6 +38,7 @@ async def get_settings(db: aiosqlite.Connection = Depends(get_db)):
             feishu_text_chunk_size=int(s.get("feishu_text_chunk_size", "1800")),
             feishu_queue_maxsize=int(s.get("feishu_queue_maxsize", "100")),
             quality_gate_auto_snapshot=s.get("quality_gate_auto_snapshot", "true").lower() in ("true", "1", "yes"),
+            restrict_paths=s.get("restrict_paths", "true").lower() in ("true", "1", "yes"),
         )
 
 
@@ -63,6 +64,7 @@ async def update_settings(settings: Settings, db: aiosqlite.Connection = Depends
         "feishu_text_chunk_size": str(settings.feishu_text_chunk_size),
         "feishu_queue_maxsize": str(settings.feishu_queue_maxsize),
         "quality_gate_auto_snapshot": str(settings.quality_gate_auto_snapshot).lower(),
+        "restrict_paths": str(settings.restrict_paths).lower(),
     }
 
     for key, value in settings_dict.items():

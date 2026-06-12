@@ -16,6 +16,7 @@ class Settings(BaseModel):
     # ── Agent 工具安全配置 ──
     workspace_dir: str = ""  # 允许操作的工作目录，空则使用项目根目录
     allowed_commands: str = "ls,cat,head,tail,grep,find,git status,git diff,git log,git add,git commit,python,pip,npm,node,pytest,git init,git remote,git branch,git push,curl"  # 命令白名单
+    restrict_paths: bool = True  # 是否限制文件操作在工作目录内（关闭后可访问任意路径）
     # ── Agent Loop 参数 ──
     agent_max_iterations: int = 200  # Agent 工具调用最大轮次
     agent_temperature: float = 0.7  # LLM 温度参数
