@@ -1,3 +1,3 @@
-from . import settings, chat, feishu
+from . import settings, chat, feishu, shadow
 
-__all__ = ["settings", "chat", "feishu"]
+__all__ = ["settings", "chat", "feishu", "shadow"]

@@ -1335,77 +1335,7 @@ _SNAPSHOT_TOOLS = [
 
 
 # ============================================================
-# Phase 5C: 影子代理工具 - 蓝绿部署 / 自我升级
-# ============================================================
-
-@tool
-async def start_shadow_service() -> str:
-    """启动影子服务 B (端口 8001)，用于安全地测试代码改动。
-
-    影子服务使用与主服务完全相同的代码，但跳过飞书连接（通过 ARUGO_SHADOW=true 环境变量）。
-    这是蓝绿部署流程的第一步：先启动 B 进行验证，主服务 A 不受影响。
-    """
-    from shadow_broker import start_shadow
-    result = await start_shadow()
-    if result["success"]:
-        return f"🔷 影子服务 B 已启动\n   端口: 8001\n   地址: http://localhost:8001\n   健康检查: http://localhost:8001/api/health"
-    else:
-        return f"❌ 影子服务启动失败:\n   {result.get('output', '未知错误')}"
-
-
-@tool
-async def stop_shadow_service() -> str:
-    """停止影子服务 B。"""
-    from shadow_broker import stop_shadow
-    result = await stop_shadow()
-    return f"{'✅' if result['success'] else '❌'} {result['message']}"
-
-
-@tool
-async def test_shadow_service(test_messages: str = "") -> str:
-    """对影子服务 B 运行核心测试：健康检查、对话功能、工具列表。
-
-    Args:
-        test_messages: 逗号分隔的测试消息，留空则使用默认消息
-    """
-    from shadow_broker import test_shadow
-    msgs = [m.strip() for m in test_messages.split(",") if m.strip()] if test_messages else None
-    result = await test_shadow(msgs)
-
-    lines = [
-        f"{'✅ 所有测试通过' if result['all_passed'] else '❌ 存在失败测试'} ({result['passed_count']}/{result['total_count']}):",
-        ""
-    ]
-    for r in result["results"]:
-        icon = "✅" if r["passed"] else "❌"
-        lines.append(f"  {icon} {r['test']}")
-        lines.append(f"     {r['detail']}")
-    lines.append(f"\n  {result['verdict']}")
-    return "\n".join(lines)
-
-
-@tool
-async def promote_shadow_service() -> str:
-    """影子服务 B 验证通过后，重启主服务 A 完成升级。
-
-    流程：再次测试 B → 确认通过 → 重启 A (自身)。
-    这是蓝绿部署的最后一步。
-    ⚠️ 执行此操作后 Agent 会短暂不可用（约3秒）。
-    """
-    from shadow_broker import promote_shadow
-    result = await promote_shadow()
-    if result["success"]:
-        return f"🚀 {result['message']}\n   主服务 A (8000) 已重新加载新代码"
-    else:
-        return f"❌ {result['message']}\n   {result.get('output', '')}"
-
-
-_SHADOW_TOOLS = [
-    start_shadow_service,
-    stop_shadow_service,
-    test_shadow_service,
-    promote_shadow_service,
-]
+# Phase 5A: 自动化测试工具
 # ============================================================
 
 @tool
@@ -1623,7 +1553,7 @@ _DIAGNOSTICS_TOOLS = [
 
 
 # 所有工具
-_ALL_TOOLS = _BUILTIN_TOOLS + _GOAL_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _SHORT_TERM_MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS + _SNAPSHOT_TOOLS + _SHADOW_TOOLS + _TEST_TOOLS + _DIAGNOSTICS_TOOLS
+_ALL_TOOLS = _BUILTIN_TOOLS + _GOAL_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _SHORT_TERM_MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS + _SNAPSHOT_TOOLS + _TEST_TOOLS + _DIAGNOSTICS_TOOLS
 
 # 动态工具注册
 try:

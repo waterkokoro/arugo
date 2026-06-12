@@ -4,7 +4,7 @@ import {
   NLayout, NLayoutHeader, NLayoutSider, NLayoutContent,
   NMenu, NIcon, NConfigProvider, zhCN, dateZhCN,
   NDialogProvider, NMessageProvider,
-  NTag, NSpace, NButton, NSwitch, useMessage
+  NTag, NSpace, NButton, NSwitch
 } from 'naive-ui'
 import { computed, h, ref, onMounted, onUnmounted, type Component } from 'vue'
 import {
@@ -14,7 +14,6 @@ import {
 } from '@vicons/ionicons5'
 
 const route = useRoute()
-const message = useMessage()
 const collapsed = ref(false)
 
 // ============================================================

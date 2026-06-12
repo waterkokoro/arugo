@@ -12,10 +12,12 @@ FRONTEND_DIR="$SCRIPT_DIR/frontend"
 # PID 文件
 BACKEND_PID_FILE="$SCRIPT_DIR/.backend.pid"
 FRONTEND_PID_FILE="$SCRIPT_DIR/.frontend.pid"
+SHADOW_PID_FILE="$SCRIPT_DIR/.shadow.pid"
 
 # 日志文件
 BACKEND_LOG="$SCRIPT_DIR/logs/backend.log"
 FRONTEND_LOG="$SCRIPT_DIR/logs/frontend.log"
+SHADOW_LOG="$SCRIPT_DIR/logs/shadow.log"
 
 # 确保日志目录存在
 mkdir -p "$SCRIPT_DIR/logs"
@@ -134,8 +136,8 @@ start_frontend() {
         npm install --silent
     fi
 
-    # 启动服务
-    nohup npm run dev > "$FRONTEND_LOG" 2>&1 &
+    # 启动服务（直接用 npx vite 避免 npm 父进程 PID 不匹配问题）
+    nohup npx vite > "$FRONTEND_LOG" 2>&1 &
     echo $! > "$FRONTEND_PID_FILE"
 
     sleep 3
@@ -244,6 +246,8 @@ cmd_status() {
         echo -e "  前端: ${RED}已停止${NC}"
     fi
 
+    shadow_status
+
     echo ""
 }
 
@@ -307,6 +311,83 @@ show_help() {
     echo ""
 }
 
+# ============================================
+# 影子服务管理 (B 服务 - 8001 端口)
+# ============================================
+
+# 获取影子 PID
+get_shadow_pid() {
+    if [ -f "$SHADOW_PID_FILE" ]; then
+        cat "$SHADOW_PID_FILE"
+    else
+        echo ""
+    fi
+}
+
+# 启动影子服务
+start_shadow() {
+    local pid=$(get_shadow_pid)
+    if is_running "$pid"; then
+        print_warn "影子服务已在运行 (PID: $pid)"
+        return 0
+    fi
+
+    # 清理端口
+    kill_port 8001
+
+    print_info "启动影子服务 B (端口 8001)..."
+    cd "$BACKEND_DIR"
+
+    # 使用虚拟环境启动，设置 ARUGO_SHADOW 环境变量
+    ARUGO_SHADOW=true nohup ./venv/bin/python -c "
+import os
+os.environ['ARUGO_SHADOW'] = 'true'
+import uvicorn
+uvicorn.run('main:app', host='0.0.0.0', port=8001, reload=False)
+" > "$SHADOW_LOG" 2>&1 &
+    echo $! > "$SHADOW_PID_FILE"
+
+    sleep 3
+    if is_running "$(get_shadow_pid)"; then
+        print_info "影子服务 B 启动成功 (PID: $(get_shadow_pid), 端口: 8001) 🔷"
+    else
+        print_error "影子服务启动失败，请查看日志: $SHADOW_LOG"
+        rm -f "$SHADOW_PID_FILE"
+        return 1
+    fi
+}
+
+# 停止影子服务
+stop_shadow() {
+    local pid=$(get_shadow_pid)
+    if is_running "$pid"; then
+        print_info "停止影子服务 B (PID: $pid)..."
+        kill "$pid" 2>/dev/null || true
+        sleep 1
+        if is_running "$pid"; then
+            kill -9 "$pid" 2>/dev/null || true
+        fi
+        rm -f "$SHADOW_PID_FILE"
+        print_info "影子服务 B 已停止 🔷"
+    else
+        print_warn "影子服务未在运行"
+        rm -f "$SHADOW_PID_FILE"
+    fi
+}
+
+# 查看影子服务状态
+shadow_status() {
+    local shadow_pid=$(get_shadow_pid)
+
+    if is_running "$shadow_pid"; then
+        echo -e "  影子服务 B: ${GREEN}运行中${NC} (PID: $shadow_pid, 端口: 8001) 🔷"
+    else
+        echo -e "  影子服务 B: ${RED}已停止${NC} 🔷"
+    fi
+}
+
+# ============================================
+
 # 主入口
 case "${1:-help}" in
     start)
@@ -320,6 +401,20 @@ case "${1:-help}" in
         ;;
     status)
         cmd_status
+        ;;
+    start-shadow)
+        start_shadow
+        ;;
+    stop-shadow)
+        stop_shadow
+        ;;
+    restart-shadow)
+        stop_shadow
+        sleep 1
+        start_shadow
+        ;;
+    shadow-status)
+        shadow_status
         ;;
     log)
         cmd_log "$2"

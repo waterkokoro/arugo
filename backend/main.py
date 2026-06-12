@@ -1,9 +1,10 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 from database import init_db
-from routers import settings, chat, feishu, management, status
+from routers import settings, chat, feishu, management, status, shadow
 
 
 @asynccontextmanager
@@ -12,7 +13,10 @@ async def lifespan(app: FastAPI):
     # 启动时初始化数据库
     await init_db()
 
-    # 启动飞书机器人（如果已配置）
+    # 影子模式：跳过飞书 Bot，避免两个实例同时连接飞书
+    is_shadow = os.environ.get("ARUGO_SHADOW", "").lower() in ("true", "1", "yes")
+
+    # 启动飞书机器人（如果已配置且非影子模式）
     from feishu.config import get_feishu_config
     from feishu.bot import FeishuBot, reset_feishu_bot
     from feishu.message_handler import create_message_handler
@@ -21,7 +25,9 @@ async def lifespan(app: FastAPI):
     bot = None
     bot_task = None
 
-    if feishu_config.enabled and feishu_config.app_id and feishu_config.app_secret:
+    if is_shadow:
+        print("[Lifespan] 🔷 影子模式：跳过飞书机器人连接")
+    elif feishu_config.enabled and feishu_config.app_id and feishu_config.app_secret:
         reset_feishu_bot()
         bot = FeishuBot(feishu_config)
         bot.set_handler_factory(create_message_handler)
@@ -61,7 +67,7 @@ app.include_router(settings.router)
 app.include_router(chat.router)
 app.include_router(feishu.router)
 app.include_router(management.router)
-app.include_router(status.router)
+app.include_router(shadow.router)
 
 
 @app.get("/api/health")
