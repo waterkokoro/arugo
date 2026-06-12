@@ -1,6 +1,0 @@
-{
-  "name": "test_echo",
-  "description": "@tool\ndef test_echo(message: str) -> str:\n    \"\"\"测试工具：回显消息，验证 add_tool_to_self 闭环。\n\n    Args:\n        message: 要回显的消息\n    \"\"\"\n    return f\"ECHO: {message}\"",
-  "category": "test",
-  "parameters": {}
-}
