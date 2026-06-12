@@ -104,23 +104,27 @@ class MemoryStore:
                             continue
 
     def _save(self):
-        """保存记忆到磁盘（全量写入）"""
+        """保存全部记忆到磁盘（全量写入，用于 delete/clear 场景）"""
         with open(self.store_path, "w", encoding="utf-8") as f:
             for entry in self.entries:
                 f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + "\n")
         self._update_index()
 
+    def _append(self, entry: MemoryEntry):
+        """增量追加单条记忆（高性能写入，仅追加一行）"""
+        with open(self.store_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + "\n")
+        self._incremental_update_index(entry)
+
     def _update_index(self):
-        """更新记忆索引（按类别和标签）"""
+        """全量重建索引（用于 delete/clear 后）"""
         index = {"categories": {}, "tags": {}, "total": len(self.entries)}
         for entry in self.entries:
-            # 按类别索引
             cat = entry.category
             if cat not in index["categories"]:
                 index["categories"][cat] = []
             index["categories"][cat].append(entry.id)
 
-            # 按标签索引
             for tag in entry.tags:
                 if tag not in index["tags"]:
                     index["tags"][tag] = []
@@ -129,10 +133,34 @@ class MemoryStore:
         with open(self.index_path, "w", encoding="utf-8") as f:
             json.dump(index, f, ensure_ascii=False, indent=2)
 
+    def _incremental_update_index(self, entry: MemoryEntry):
+        """增量更新索引（仅追加新条目，O(1)）"""
+        index = {"categories": {}, "tags": {}, "total": len(self.entries)}
+        if os.path.exists(self.index_path):
+            with open(self.index_path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+                index["categories"] = existing.get("categories", {})
+                index["tags"] = existing.get("tags", {})
+
+        index["total"] = len(self.entries)
+
+        cat = entry.category
+        if cat not in index["categories"]:
+            index["categories"][cat] = []
+        index["categories"][cat].append(entry.id)
+
+        for tag in entry.tags:
+            if tag not in index["tags"]:
+                index["tags"][tag] = []
+            index["tags"][tag].append(entry.id)
+
+        with open(self.index_path, "w", encoding="utf-8") as f:
+            json.dump(index, f, ensure_ascii=False, indent=2)
+
     def add(self, entry: MemoryEntry) -> str:
-        """添加记忆条目"""
+        """添加记忆条目（增量写入，O(1)磁盘操作）"""
         self.entries.append(entry)
-        self._save()
+        self._append(entry)  # 高性能：仅追加一行，不重写全文件
         return entry.id
 
     def search(

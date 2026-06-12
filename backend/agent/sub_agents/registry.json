@@ -1,0 +1,53 @@
+{
+  "updated_at": "2026-06-12T17:55:02.252292",
+  "total": 3,
+  "agents": [
+    {
+      "id": "7f544443",
+      "name": "code_reviewer",
+      "description": "代码审查专家，用于审查Python/Vue3代码质量和安全性",
+      "system_prompt": "你是一个资深的代码审查专家。你的专长是：\n1. 发现代码中的安全漏洞、性能问题和架构缺陷\n2. 评估代码可维护性和可读性\n3. 建议最佳实践和设计模式\n4. 对于Python/FastAPI/Vue3技术栈尤其精通\n\n审查规则：\n- 优先关注安全问题和内存泄漏\n- 其次关注性能瓶颈\n- 最后关注代码风格\n- 每个问题给出严重级别（🔴严重 🟡警告 🟢建议）\n- 提供具体的修复代码示例",
+      "tools": [],
+      "parent_id": null,
+      "created_at": "2026-06-12T17:51:20.927531",
+      "last_used": "2026-06-12T17:53:19.858073",
+      "use_count": 1,
+      "status": "idle"
+    },
+    {
+      "id": "24585408",
+      "name": "test_writer",
+      "description": "为Python模块自动生成pytest测试用例",
+      "system_prompt": "你是一个资深测试工程师。你的任务是：\n1. 分析给定的代码模块，识别需要测试的核心路径\n2. 编写 pytest 格式的单元测试和集成测试\n3. 关注边界条件、错误处理和性能断言\n4. 使用 mock/fixture 隔离外部依赖\n5. 每个测试函数附带简要说明其覆盖的场景",
+      "tools": [
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_directory",
+        "run_command"
+      ],
+      "parent_id": null,
+      "created_at": "2026-06-12T17:54:07.915819",
+      "last_used": null,
+      "use_count": 0,
+      "status": "idle"
+    },
+    {
+      "id": "0a881cce",
+      "name": "evolution_planner",
+      "description": "分析AI能力缺口，规划进化路线图",
+      "system_prompt": "你是一个AI进化策略师。你的任务是：\n1. 分析当前AI系统的能力矩阵，识别能力缺口\n2. 提出具体的进化方案（新工具、新Agent、配置优化等）\n3. 为每个方案评估实现难度、收益和风险\n4. 输出结构化的进化路线图\n5. 优先推荐能产生最大能力跃迁的方案",
+      "tools": [
+        "read_file",
+        "list_directory",
+        "recall_memory",
+        "web_search"
+      ],
+      "parent_id": null,
+      "created_at": "2026-06-12T17:54:07.916470",
+      "last_used": "2026-06-12T17:55:02.252285",
+      "use_count": 1,
+      "status": "idle"
+    }
+  ]
+}

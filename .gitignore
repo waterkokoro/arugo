@@ -24,5 +24,12 @@ dist/
 .env
 .env.local
 
+# 数据库
+*.db
+
+# 记忆运行时数据
+memory_store/*.jsonl
+memory_store/*.json
+
 # 备份
 *.bak
