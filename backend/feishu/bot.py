@@ -235,7 +235,7 @@ class FeishuBot:
                         await self._reply_via_rest(message_id, status_text)
 
                     handler = self._handler_factory(progress_callback)
-                    reply = await handler(sender_id, text, chat_id)
+                    reply = await handler(sender_id, text, chat_id, message_id)
                 else:
                     reply = "机器人还未配置消息处理器。"
 

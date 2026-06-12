@@ -4,10 +4,14 @@
 
 Phase 5C: 增加进度推送 + 内置命令系统
 Phase 5E: 群聊维度滑动窗口记忆（FeishuGroupContext）
+Phase 5G: FeishuGroupContext 文件持久化（跨重启保留群聊记忆）
 """
 
 import asyncio
+import hashlib
+import json
 import logging
+import os
 from collections import deque
 from datetime import datetime, timedelta
 from typing import Callable, Awaitable, Optional
@@ -16,19 +20,35 @@ logger = logging.getLogger("feishu.handler")
 
 
 # ================================================================
-# 群聊滑动窗口记忆
+# 群聊滑动窗口记忆（Phase 5G: 文件持久化）
 # ================================================================
 
+def _get_storage_dir() -> str:
+    """获取飞书群聊记忆存储目录"""
+    # 与 short_term_memory 同级：memory_store/feishu_groups/
+    base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    dir_path = os.path.join(base, "memory_store", "feishu_groups")
+    os.makedirs(dir_path, exist_ok=True)
+    return dir_path
+
+
+def _chat_id_to_filename(chat_id: str) -> str:
+    """将 chat_id 转为安全的文件名（SHA256 前16位）"""
+    h = hashlib.sha256(chat_id.encode()).hexdigest()[:16]
+    return f"{h}.json"
+
+
 class FeishuGroupContext:
-    """按群聊/会话维度的短期滑动窗口记忆。
+    """按群聊/会话维度的短期滑动窗口记忆（文件持久化）。
 
     每个 chat_id 维护独立的消息队列，Agent 处理消息时
     自动注入该群最近 N 条对话历史。
 
-    与 Web Chat 的 ContextManager（SQLite 持久化）不同：
-    - 此模块仅维护内存中的短期上下文（不持久化，重启清空）
-    - 设计目的：让同群聊的连续对话保持连贯
-    - 持久记忆仍通过 PersistentMemoryManager 跨会话保留
+    持久化策略：
+    - 内存：deque 快速读写（Agent 上下文注入不用等 IO）
+    - 磁盘：每次 add_message 同步写 JSON 文件（重启不丢失）
+    - 启动时自动加载所有未过期的群聊文件
+    - 清理过期群聊时同时删除磁盘文件
     """
 
     # 默认每群保留的消息条数
@@ -44,6 +64,112 @@ class FeishuGroupContext:
         self._groups: dict[str, deque] = {}
         self._last_active: dict[str, datetime] = {}
         self._cleanup_task: Optional[asyncio.Task] = None
+        self._storage_dir = _get_storage_dir()
+        # 启动时从磁盘加载已有群聊
+        self._load_all_from_disk()
+
+    # ================================================================
+    # 磁盘持久化
+    # ================================================================
+
+    def _filepath(self, chat_id: str) -> str:
+        return os.path.join(self._storage_dir, _chat_id_to_filename(chat_id))
+
+    def _save_group(self, chat_id: str):
+        """将指定群聊的消息写入 JSON 文件"""
+        if chat_id not in self._groups:
+            return
+        try:
+            data = {
+                "chat_id": chat_id,
+                "last_active": self._last_active.get(chat_id, datetime.now()).isoformat(),
+                "messages": list(self._groups[chat_id]),
+            }
+            filepath = self._filepath(chat_id)
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"[GroupCtx] 保存群聊 {chat_id[:15]}... 失败: {e}")
+
+    def _load_group(self, filepath: str) -> Optional[str]:
+        """从 JSON 文件加载群聊，返回 chat_id（失败返回 None）"""
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            chat_id = data.get("chat_id", "")
+            if not chat_id:
+                return None
+
+            messages_data = data.get("messages", [])
+            if not messages_data:
+                return None
+
+            # 检查是否过期
+            last_active_str = data.get("last_active", "")
+            if last_active_str:
+                try:
+                    last_active = datetime.fromisoformat(last_active_str)
+                    if datetime.now() - last_active > timedelta(minutes=self.TTL_MINUTES):
+                        logger.info(f"[GroupCtx] 跳过过期群聊: {chat_id[:15]}...")
+                        os.remove(filepath)  # 清理过期文件
+                        return None
+                except ValueError:
+                    pass
+
+            # 恢复到内存
+            dq = deque(maxlen=self._max_messages)
+            for m in messages_data[-self._max_messages:]:
+                dq.append(m)
+
+            self._groups[chat_id] = dq
+            if last_active_str:
+                try:
+                    self._last_active[chat_id] = datetime.fromisoformat(last_active_str)
+                except ValueError:
+                    self._last_active[chat_id] = datetime.now()
+            else:
+                self._last_active[chat_id] = datetime.now()
+
+            logger.info(
+                f"[GroupCtx] 已加载群聊: {chat_id[:15]}... "
+                f"（{len(dq)} 条消息）"
+            )
+            return chat_id
+
+        except Exception as e:
+            logger.warning(f"[GroupCtx] 加载文件 {os.path.basename(filepath)} 失败: {e}")
+            return None
+
+    def _load_all_from_disk(self):
+        """启动时加载所有未过期的群聊文件"""
+        if not os.path.isdir(self._storage_dir):
+            return
+
+        loaded = 0
+        for fname in os.listdir(self._storage_dir):
+            if fname.endswith(".json"):
+                filepath = os.path.join(self._storage_dir, fname)
+                if self._load_group(filepath):
+                    loaded += 1
+
+        if loaded > 0:
+            logger.info(f"[GroupCtx] 从磁盘恢复了 {loaded} 个群聊的上下文")
+        else:
+            logger.info("[GroupCtx] 无历史群聊上下文（首次启动或全部过期）")
+
+    def _delete_group_file(self, chat_id: str):
+        """删除指定群聊的磁盘文件"""
+        try:
+            filepath = self._filepath(chat_id)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        except Exception:
+            pass
+
+    # ================================================================
+    # 生命周期
+    # ================================================================
 
     async def start(self):
         """启动定时清理"""
@@ -68,7 +194,7 @@ class FeishuGroupContext:
                 pass
 
     def _cleanup_expired(self):
-        """清理超时未活跃的群聊"""
+        """清理超时未活跃的群聊（内存 + 磁盘）"""
         now = datetime.now()
         expired = []
         for chat_id, last_time in self._last_active.items():
@@ -77,10 +203,15 @@ class FeishuGroupContext:
         for chat_id in expired:
             del self._groups[chat_id]
             del self._last_active[chat_id]
+            self._delete_group_file(chat_id)
             logger.info(f"[GroupCtx] 清理超时群聊: {chat_id[:15]}...")
 
+    # ================================================================
+    # 消息操作
+    # ================================================================
+
     def add_message(self, chat_id: str, role: str, content: str):
-        """向指定群聊的上下文添加一条消息"""
+        """向指定群聊的上下文添加一条消息（内存 + 磁盘）"""
         if not chat_id:
             return
         if chat_id not in self._groups:
@@ -92,6 +223,9 @@ class FeishuGroupContext:
             "time": datetime.now().isoformat(),
         })
         self._last_active[chat_id] = datetime.now()
+
+        # 同步写入磁盘
+        self._save_group(chat_id)
 
     def get_context(self, chat_id: str) -> list[dict]:
         """获取指定群聊的最近消息（不含 system prompt）"""
@@ -132,9 +266,18 @@ class FeishuGroupContext:
         if chat_id:
             self._groups.pop(chat_id, None)
             self._last_active.pop(chat_id, None)
+            self._delete_group_file(chat_id)
         else:
             self._groups.clear()
             self._last_active.clear()
+            # 清空全部磁盘文件
+            if os.path.isdir(self._storage_dir):
+                for fname in os.listdir(self._storage_dir):
+                    if fname.endswith(".json"):
+                        try:
+                            os.remove(os.path.join(self._storage_dir, fname))
+                        except Exception:
+                            pass
 
     @property
     def group_count(self) -> int:
@@ -174,7 +317,7 @@ def create_message_handler(
     if group_ctx._cleanup_task is None:
         asyncio.create_task(group_ctx._cleanup_loop())
 
-    async def handle_feishu_message(sender_id: str, text: str, chat_id: str = "") -> str:
+    async def handle_feishu_message(sender_id: str, text: str, chat_id: str = "", message_id: str = "") -> str:
         """飞书消息 → 命令检测 → Agent → 回复（含群聊上下文注入）"""
         import aiosqlite
         from database import DB_PATH
