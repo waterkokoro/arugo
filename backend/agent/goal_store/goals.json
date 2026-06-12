@@ -96,7 +96,51 @@
       ],
       "created_at": "2026-06-12T18:03:31.706333",
       "updated_at": "2026-06-12T18:03:52.326820"
+    },
+    {
+      "id": "ddbebd5973",
+      "title": "Phase 3: 沙盒执行环境与快照回滚",
+      "description": "实现多文件原子快照系统，让 AI 能在重大操作前创建全状态恢复点，失败后一键回滚。包括 sandbox.py 模块、4个快照工具、质量门禁集成自动快照。",
+      "priority": 4,
+      "status": "completed",
+      "deadline": null,
+      "tags": [
+        "Phase3",
+        "核心能力",
+        "安全"
+      ],
+      "milestones": [
+        {
+          "id": "acccd3d456",
+          "title": "创建 sandbox.py 模块",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "SnapshotManager 类实现：create_snapshot, list_snapshots, restore_snapshot, delete_snapshot, pre_flight_snapshot, get_snapshot_report",
+          "created_at": "2026-06-12T18:35:52.051532",
+          "completed_at": "2026-06-12T18:35:55.457945"
+        },
+        {
+          "id": "0e05169136",
+          "title": "添加 4 个快照工具到 tools.py",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "create_snapshot, list_snapshots, restore_snapshot, delete_snapshot 在 tools.py 中注册并可在 tool calling 中使用",
+          "created_at": "2026-06-12T18:35:52.052284",
+          "completed_at": "2026-06-12T18:35:55.458802"
+        },
+        {
+          "id": "ca7927d74e",
+          "title": "质量门禁 × 沙盒集成",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "quality_gate.full_gate_check 在 medium+ 风险操作前自动触发快照",
+          "created_at": "2026-06-12T18:35:52.052851",
+          "completed_at": "2026-06-12T18:35:55.459452"
+        }
+      ],
+      "created_at": "2026-06-12T18:35:48.000477",
+      "updated_at": "2026-06-12T18:35:55.460073"
     }
   ],
-  "updated_at": "2026-06-12T18:03:52.326826"
+  "updated_at": "2026-06-12T18:35:55.460081"
 }

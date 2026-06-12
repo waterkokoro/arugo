@@ -1050,8 +1050,103 @@ _GOAL_TOOLS = [
     update_milestone,
 ]
 
+# ============================================================
+# Phase 3: 沙盒快照工具
+# ============================================================
+
+from agent.sandbox import get_snapshot_manager
+
+
+@tool
+def create_snapshot(name: str = "", description: str = "") -> str:
+    """创建当前 Agent 的完整状态快照，用于安全回滚。
+
+    快照覆盖所有源码（tools.py, context.py, memory.py 等）、
+    配置文件（system_prompt.txt）和数据（memory_store, goal_store）。
+
+    在重大进化操作前应调用此工具创建恢复点。
+
+    Args:
+        name: 快照名称（如 "Phase3改造前"），留空自动生成
+        description: 快照描述（如 "准备重构工具注册机制"），留空无描述
+    """
+    mgr = get_snapshot_manager()
+    entry = mgr.create_snapshot(name=name, description=description, trigger="manual")
+
+    # 同时记录进化事件
+    log_evolution_event.func(
+        "snapshot_created",
+        f"快照 '{entry.name}' ({entry.id}): {entry.file_count}文件, {entry.total_size/1024:.1f}KB"
+    )
+
+    return (
+        f"✅ 快照已创建\n"
+        f"   ID: {entry.id}\n"
+        f"   名称: {entry.name}\n"
+        f"   文件数: {entry.file_count}\n"
+        f"   大小: {entry.total_size/1024:.1f} KB\n"
+        f"   时间: {entry.created_at[:19]}\n"
+        f"   回滚: restore_snapshot('{entry.id}')"
+    )
+
+
+@tool
+def list_snapshots() -> str:
+    """列出所有可用的状态快照，含时间、大小、触发方式。"""
+    mgr = get_snapshot_manager()
+    return mgr.get_snapshot_report()
+
+
+@tool
+def restore_snapshot(snapshot_id: str) -> str:
+    """从指定快照恢复 Agent 的全部状态（源码 + 配置 + 数据）。
+
+    恢复会自动创建"恢复前安全快照"，防止恢复操作本身出错。
+    恢复后必须重启服务生效。
+
+    Args:
+        snapshot_id: 快照 ID（可通过 list_snapshots 获取）
+    """
+    mgr = get_snapshot_manager()
+    success, message = mgr.restore_snapshot(snapshot_id)
+
+    if success:
+        log_evolution_event.func(
+            "snapshot_restored",
+            f"从快照 {snapshot_id} 恢复完成"
+        )
+
+    return message
+
+
+@tool
+def delete_snapshot(snapshot_id: str) -> str:
+    """删除指定快照以释放磁盘空间。
+
+    Args:
+        snapshot_id: 快照 ID（可通过 list_snapshots 获取）
+    """
+    mgr = get_snapshot_manager()
+    success, message = mgr.delete_snapshot(snapshot_id)
+
+    if success:
+        log_evolution_event.func(
+            "snapshot_deleted",
+            f"快照 {snapshot_id} 已删除"
+        )
+
+    return message
+
+
+_SNAPSHOT_TOOLS = [
+    create_snapshot,
+    list_snapshots,
+    restore_snapshot,
+    delete_snapshot,
+]
+
 # 所有工具
-_ALL_TOOLS = _BUILTIN_TOOLS + _GOAL_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS
+_ALL_TOOLS = _BUILTIN_TOOLS + _GOAL_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS + _SNAPSHOT_TOOLS
 
 # 动态工具注册
 try:

@@ -257,15 +257,25 @@ class QualityGate:
         code: str = "",
         result: str = "",
         context: dict = None,
+        auto_snapshot: bool = True,
     ) -> dict:
         """
         执行完整的三阶段质量门禁检查。
+
+        Args:
+            operation: 操作类型
+            target: 操作目标
+            code: 代码内容（用于 inline 检查）
+            result: 操作结果（用于 post 检查）
+            context: 额外上下文
+            auto_snapshot: 高风险操作前是否自动创建快照（默认 True）
 
         Returns:
             {
                 "pre": GateResult.to_dict(),
                 "inline": GateResult.to_dict() | None,
                 "post": GateResult.to_dict(),
+                "snapshot_id": str | None,   # 自动快照 ID
                 "verdict": "pass" | "warn" | "block",
                 "blocked_reason": str | None,
             }
@@ -280,35 +290,42 @@ class QualityGate:
             all_results.append(inline)
         all_results.append(post)
 
+        # 自动快照：中等及以上风险操作前创建快照
+        snapshot_id = None
+        if auto_snapshot and pre.risk_level in ("medium", "high", "critical"):
+            try:
+                from agent.sandbox import get_snapshot_manager
+                mgr = get_snapshot_manager()
+                entry = mgr.pre_flight_snapshot(operation, target)
+                if entry:
+                    snapshot_id = entry.id
+            except Exception as e:
+                print(f"[QualityGate] Auto-snapshot failed: {e}")
+
+        result_dict = {
+            "pre": pre.to_dict(),
+            "inline": inline.to_dict() if inline else None,
+            "post": post.to_dict(),
+            "snapshot_id": snapshot_id,
+        }
+
         # 任一 BLOCK 则整体 BLOCK
         for r in all_results:
             if r.status == GateStatus.BLOCK:
-                return {
-                    "pre": pre.to_dict(),
-                    "inline": inline.to_dict() if inline else None,
-                    "post": post.to_dict(),
-                    "verdict": "block",
-                    "blocked_reason": r.summary,
-                }
+                result_dict["verdict"] = "block"
+                result_dict["blocked_reason"] = r.summary
+                return result_dict
 
         # 任一 WARN 则整体 WARN
         for r in all_results:
             if r.status == GateStatus.WARN:
-                return {
-                    "pre": pre.to_dict(),
-                    "inline": inline.to_dict() if inline else None,
-                    "post": post.to_dict(),
-                    "verdict": "warn",
-                    "blocked_reason": None,
-                }
+                result_dict["verdict"] = "warn"
+                result_dict["blocked_reason"] = None
+                return result_dict
 
-        return {
-            "pre": pre.to_dict(),
-            "inline": inline.to_dict() if inline else None,
-            "post": post.to_dict(),
-            "verdict": "pass",
-            "blocked_reason": None,
-        }
+        result_dict["verdict"] = "pass"
+        result_dict["blocked_reason"] = None
+        return result_dict
 
 
 # 全局单例
