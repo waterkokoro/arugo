@@ -337,11 +337,73 @@ def log_evolution_event(event_type: str, description: str) -> str:
 # ============================================================
 
 from agent.agent_factory import get_agent_factory
+from openai import AsyncOpenAI
+
+
+@tool
+async def invoke_sub_agent(agent_name: str, task: str) -> str:
+    """调用一个已创建的子Agent执行特定任务。子Agent使用其专属system_prompt进行单轮推理。
+
+    适用场景：代码审查、测试生成、文档撰写、专业分析等可委派任务。
+
+    Args:
+        agent_name: 子Agent名称或ID（通过 list_sub_agents 查看）
+        task: 委派给子Agent的任务描述，越详细越好
+    """
+    factory = get_agent_factory()
+    
+    # 查找子Agent（先按名称，再按ID）
+    agent = factory.find_by_name(agent_name)
+    if not agent:
+        agent = factory.get(agent_name)
+    if not agent:
+        agents = factory.list_all()
+        names = ", ".join([f"{a.name}({a.id})" for a in agents]) if agents else "无"
+        return f"❌ 未找到子Agent: {agent_name}\n可用: {names}"
+    
+    config = get_tool_config()
+    
+    # 创建临时客户端
+    try:
+        client = AsyncOpenAI(
+            api_key=config.get("api_key", ""),
+            base_url=config.get("base_url", "https://api.openai.com/v1"),
+        )
+    except Exception as e:
+        return f"❌ 创建LLM客户端失败: {str(e)}"
+    
+    messages = [
+        {"role": "system", "content": agent.system_prompt},
+        {"role": "user", "content": task},
+    ]
+    
+    try:
+        response = await client.chat.completions.create(
+            model=config.get("model_name", "gpt-3.5-turbo"),
+            messages=messages,
+            temperature=0.7,
+            max_tokens=4096,
+        )
+        result = response.choices[0].message.content
+        
+        # 标记子Agent被使用
+        factory.mark_used(agent.id)
+        
+        # 记录进化事件
+        mem = _get_memory()
+        mem.log_evolution(
+            "sub_agent_invoked",
+            f"子Agent '{agent.name}' 被调用执行任务: {task[:80]}",
+        )
+        
+        return f"[子Agent: {agent.name} (ID: {agent.id})]\n\n{result}"
+    except Exception as e:
+        return f"❌ 子Agent调用失败: {str(e)}"
 
 
 @tool
 def create_sub_agent(name: str, system_prompt: str, description: str = "", tools: str = "") -> str:
-    """创建一个专门用途的子Agent，用于委派特定任务。
+    """创建一个专门用途的子Agent，用于委派特定任务。创建后可用 invoke_sub_agent 调用。
 
     Args:
         name: 子Agent名称（如 "code_reviewer", "test_writer"）
@@ -744,6 +806,7 @@ _AGENT_FACTORY_TOOLS = [
     list_sub_agents,
     delete_sub_agent,
     generate_agent_config,
+    invoke_sub_agent,
 ]
 
 # 自我进化工具

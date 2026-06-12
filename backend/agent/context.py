@@ -1,5 +1,7 @@
 from typing import List, Dict, Optional
+import asyncio
 import aiosqlite
+from datetime import datetime
 from agent.memory import PersistentMemoryManager
 
 
@@ -78,7 +80,6 @@ class ContextManager:
         current_count = await self._count_messages()
         if current_count > window_size * 0.8:
             # 异步触发摘要保存（不阻塞当前请求）
-            import asyncio
             asyncio.create_task(self._auto_summarize(current_count, window_size))
 
         return messages
@@ -88,7 +89,7 @@ class ContextManager:
         try:
             summary = (
                 f"自动摘要 - 会话消息数 {current_count}/{window_size}\n"
-                f"触发时间: {__import__('datetime').datetime.now().isoformat()}\n"
+                f"触发时间: {datetime.now().isoformat()}\n"
                 f"原因: 滑动窗口使用率超过 80%，自动保存以防止信息丢失。"
             )
             self.memory.end_session(summary)
