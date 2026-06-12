@@ -1,0 +1,6 @@
+{
+  "name": "add_milestone",
+  "description": "@tool\ndef add_milestone(goal_id: str, title: str, completion_criteria: str = \"\") -> str:\n    \"\"\"为进化目标添加一个里程碑，用于分解大目标为可追踪的小步骤。\n\n    Args:\n        goal_id: 目标ID（可通过 list_goals 获取）\n        title: 里程碑标题\n ",
+  "category": "goal",
+  "parameters": {}
+}

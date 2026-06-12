@@ -1,0 +1,6 @@
+{
+  "name": "update_goal",
+  "description": "@tool\ndef update_goal(goal_id: str, status: str = \"\", priority: int = 0, title: str = \"\", description: str = \"\") -> str:\n    \"\"\"更新进化目标的状态、优先级、标题或描述。\n\n    Args:\n        goal_id: 目标ID（可通过 list_goals 获取）",
+  "category": "goal",
+  "parameters": {}
+}

@@ -1,0 +1,6 @@
+{
+  "name": "update_milestone",
+  "description": "@tool\ndef update_milestone(goal_id: str, milestone_id: str, status: str = \"\", progress: int = -1) -> str:\n    \"\"\"更新里程碑的状态或进度。完成后自动更新所属目标的整体进度。\n\n    Args:\n        goal_id: 目标ID\n        milestone_id: 里程",
+  "category": "goal",
+  "parameters": {}
+}

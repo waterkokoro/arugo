@@ -644,20 +644,6 @@ def add_tool_to_self(tool_name: str, tool_code: str, category: str = "generated"
 {tool_code}
 
 
-# 注册到工具列表
-if "{tool_name}" not in [t.name if hasattr(t, 'name') else str(t) for t in _ALL_TOOLS]:
-    try:
-        _ALL_TOOLS.append({tool_name})
-        get_tool_registry().register(ToolDef(
-            name="{tool_name}",
-            description={tool_name}.description if hasattr({tool_name}, 'description') else "",
-            func={tool_name},
-            source="generated",
-            category="{category}",
-        ))
-        print("[SelfEvo] 工具 \\"{tool_name}\\" 已自动注册到 _ALL_TOOLS 和 ToolRegistry")
-    except Exception as e:
-        print(f"[SelfEvo] 工具 \\"{tool_name}\\" 注册失败: {{e}}")
 '''
     
     # 5. 写入文件
@@ -897,8 +883,175 @@ def quality_gate_check(
         return _json.dumps(full, ensure_ascii=False, indent=2)
 
 
+
+
+# ============================================================
+# 动态添加的工具: create_goal（类别: goal）
+# ============================================================
+
+@tool
+def create_goal(title: str, description: str = "", priority: int = 3, deadline: str = "", tags: str = "") -> str:
+    """创建一个新的进化目标。用于设定AI需要完成的长期任务，可包含多个里程碑。
+
+    Args:
+        title: 目标标题
+        description: 目标详细描述
+        priority: 优先级 1-5（1=低，5=极高），默认 3
+        deadline: 截止日期，ISO格式如 "2026-12-31"，留空为无截止
+        tags: 逗号分隔的标签，如 "Phase2,urgent"
+    """
+    from agent.goal_manager import get_goal_manager
+    gm = get_goal_manager()
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+    g = gm.create_goal(
+        title=title,
+        description=description,
+        priority=min(5, max(1, priority)),
+        deadline=deadline if deadline else None,
+        tags=tag_list,
+    )
+    return f"✅ 目标已创建: #{g.id}\n   标题: {g.title}\n   优先级: {'★' * g.priority}\n   状态: {g.status}"
+
+
+
+
+
+# ============================================================
+# 动态添加的工具: list_goals（类别: goal）
+# ============================================================
+
+@tool
+def list_goals(status: str = "") -> str:
+    """列出所有进化目标，可按状态过滤。
+
+    Args:
+        status: 状态过滤：active（活跃）, paused（暂停）, completed（已完成）, abandoned（放弃）。留空显示全部
+    """
+    from agent.goal_manager import get_goal_manager
+    gm = get_goal_manager()
+    goals = gm.list_goals(status=status if status else None)
+    if not goals:
+        return "暂无进化目标。使用 create_goal 创建第一个目标。"
+    lines = [f"📋 进化目标 ({len(goals)} 个):"]
+    for g in goals:
+        icons = {"active": "🟢", "paused": "⏸️", "completed": "✅", "abandoned": "❌"}
+        icon = icons.get(g.status, "❓")
+        stars = "★" * g.priority
+        ms_count = len(g.milestones)
+        ms_done = sum(1 for m in g.milestones if m.status == "completed")
+        ms_str = f" | 里程碑: {ms_done}/{ms_count}" if ms_count > 0 else ""
+        deadline_str = f" | 截止: {g.deadline}" if g.deadline else ""
+        lines.append(f"  {icon} #{g.id}: {g.title} [{stars}] 进度:{g.progress}%{ms_str}{deadline_str}")
+    return "\n".join(lines)
+
+
+
+
+
+# ============================================================
+# 动态添加的工具: update_goal（类别: goal）
+# ============================================================
+
+@tool
+def update_goal(goal_id: str, status: str = "", priority: int = 0, title: str = "", description: str = "") -> str:
+    """更新进化目标的状态、优先级、标题或描述。
+
+    Args:
+        goal_id: 目标ID（可通过 list_goals 获取）
+        status: 新状态：active, paused, completed, abandoned（留空不修改）
+        priority: 新优先级 1-5（0=不修改）
+        title: 新标题（留空不修改）
+        description: 新描述（留空不修改）
+    """
+    from agent.goal_manager import get_goal_manager
+    gm = get_goal_manager()
+    kwargs = {}
+    if status:
+        kwargs["status"] = status
+    if priority > 0:
+        kwargs["priority"] = min(5, max(1, priority))
+    if title:
+        kwargs["title"] = title
+    if description:
+        kwargs["description"] = description
+    if not kwargs:
+        return "未指定任何要更新的字段。"
+    g = gm.update_goal(goal_id, **kwargs)
+    if not g:
+        return f"❌ 未找到目标: {goal_id}"
+    return f"✅ 目标 #{g.id} 已更新: {g.title} (状态:{g.status}, 优先级:{g.priority})"
+
+
+
+
+
+# ============================================================
+# 动态添加的工具: add_milestone（类别: goal）
+# ============================================================
+
+@tool
+def add_milestone(goal_id: str, title: str, completion_criteria: str = "") -> str:
+    """为进化目标添加一个里程碑，用于分解大目标为可追踪的小步骤。
+
+    Args:
+        goal_id: 目标ID（可通过 list_goals 获取）
+        title: 里程碑标题
+        completion_criteria: 完成标准（如何判断该里程碑已达成）
+    """
+    from agent.goal_manager import get_goal_manager
+    gm = get_goal_manager()
+    m = gm.add_milestone(goal_id, title, completion_criteria)
+    if not m:
+        return f"❌ 未找到目标: {goal_id}"
+    return f"✅ 里程碑已添加: {m.id}\n   目标: {goal_id}\n   标题: {m.title}\n   完成标准: {m.completion_criteria or '未指定'}"
+
+
+
+
+
+# ============================================================
+# 动态添加的工具: update_milestone（类别: goal）
+# ============================================================
+
+@tool
+def update_milestone(goal_id: str, milestone_id: str, status: str = "", progress: int = -1) -> str:
+    """更新里程碑的状态或进度。完成后自动更新所属目标的整体进度。
+
+    Args:
+        goal_id: 目标ID
+        milestone_id: 里程碑ID（可通过 list_goals 查看各目标的里程碑详情）
+        status: 新状态：pending, in_progress, completed（留空不修改）
+        progress: 进度 0-100（-1=不修改）
+    """
+    from agent.goal_manager import get_goal_manager
+    gm = get_goal_manager()
+    kwargs = {}
+    if status:
+        kwargs["status"] = status
+    if progress >= 0:
+        kwargs["progress"] = min(100, max(0, progress))
+    if not kwargs:
+        return "未指定任何要更新的字段。"
+    m = gm.update_milestone(goal_id, milestone_id, **kwargs)
+    if not m:
+        return f"❌ 未找到目标 {goal_id} 或里程碑 {milestone_id}"
+    g = gm.get_goal(goal_id)
+    return f"✅ 里程碑已更新: {m.title} (状态:{m.status}, 进度:{m.progress}%)\n   目标整体进度: {g.progress}%"
+
+
+
+
+# 目标管理工具
+_GOAL_TOOLS = [
+    create_goal,
+    list_goals,
+    update_goal,
+    add_milestone,
+    update_milestone,
+]
+
 # 所有工具
-_ALL_TOOLS = _BUILTIN_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS
+_ALL_TOOLS = _BUILTIN_TOOLS + _GOAL_TOOLS + _SEARCH_TOOLS + _MEMORY_TOOLS + _AGENT_FACTORY_TOOLS + _EVOLUTION_TOOLS
 
 # 动态工具注册
 try:

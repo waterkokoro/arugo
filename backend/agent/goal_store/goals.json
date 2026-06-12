@@ -1,0 +1,102 @@
+{
+  "goals": [
+    {
+      "id": "52685b7b71",
+      "title": "Phase 1: 持久记忆系统",
+      "description": "突破滑动窗口限制，实现跨会话持久记忆。memory.py核心模块 + ContextManager集成 + 自动摘要。",
+      "priority": 5,
+      "status": "completed",
+      "deadline": null,
+      "tags": [
+        "Phase1",
+        "core",
+        "completed"
+      ],
+      "milestones": [
+        {
+          "id": "a3782f02ec",
+          "title": "memory.py 核心模块",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "MemoryStore + SessionSummary + PersistentMemoryManager 三层架构",
+          "created_at": "2026-06-12T18:03:31.705631",
+          "completed_at": "2026-06-12T18:03:31.706229"
+        },
+        {
+          "id": "11cba0781a",
+          "title": "ContextManager 集成",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "build_context() 自动注入持久记忆到系统提示词",
+          "created_at": "2026-06-12T18:03:31.705975",
+          "completed_at": "2026-06-12T18:03:31.706230"
+        },
+        {
+          "id": "0514bba728",
+          "title": "自动摘要机制",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "窗口使用率>80%时自动触发会话摘要保存",
+          "created_at": "2026-06-12T18:03:31.706122",
+          "completed_at": "2026-06-12T18:03:31.706231"
+        }
+      ],
+      "created_at": "2026-06-12T18:03:31.705424",
+      "updated_at": "2026-06-12T18:03:31.706227"
+    },
+    {
+      "id": "b74e9db2b6",
+      "title": "Phase 2: 目标与里程碑管理器",
+      "description": "实现跨会话的进化目标追踪系统。goal_manager.py + 5个管理工具 + Context集成。",
+      "priority": 5,
+      "status": "completed",
+      "deadline": null,
+      "tags": [
+        "Phase2",
+        "core",
+        "in_progress"
+      ],
+      "milestones": [
+        {
+          "id": "7d9826bff7",
+          "title": "goal_manager.py 核心模块",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "Goal + Milestone + GoalManager 完整数据结构与JSON持久化",
+          "created_at": "2026-06-12T18:03:31.706420",
+          "completed_at": "2026-06-12T18:03:38.383024"
+        },
+        {
+          "id": "a7ee2abff0",
+          "title": "5个工具热加载",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "create_goal, list_goals, update_goal, add_milestone, update_milestone 全部可用",
+          "created_at": "2026-06-12T18:03:31.706517",
+          "completed_at": "2026-06-12T18:03:38.383250"
+        },
+        {
+          "id": "c4c17ee6a7",
+          "title": "ContextManager 目标注入",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "build_context() 自动注入活跃进化目标摘要",
+          "created_at": "2026-06-12T18:03:31.706681",
+          "completed_at": "2026-06-12T18:03:38.383755"
+        },
+        {
+          "id": "e073550018",
+          "title": "system_prompt 更新",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "反映目标追踪能力和进化路线图",
+          "created_at": "2026-06-12T18:03:31.706779",
+          "completed_at": "2026-06-12T18:03:48.825537"
+        }
+      ],
+      "created_at": "2026-06-12T18:03:31.706333",
+      "updated_at": "2026-06-12T18:03:52.326820"
+    }
+  ],
+  "updated_at": "2026-06-12T18:03:52.326826"
+}

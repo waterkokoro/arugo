@@ -7,3 +7,9 @@
 {"timestamp": "2026-06-12T17:55:10.173786", "type": "capability_upgrade", "description": "memory.py 性能优化：_save()全量写入改为_append()增量追加，新增_incremental_update_index()。add()操作从O(n)磁盘降为O(1)。同时创建test_writer和evolution_planner两个子Agent。", "metadata": {}}
 {"timestamp": "2026-06-12T17:55:13.416015", "type": "code_committed", "description": "Git 提交: perf(memory): 增量写入优化 + 新子Agent(test_writer, evolution_planner)\n\n- memory.py: add()使用_append()增量追加，O(n)→O(1)磁盘操作\n- 新增_incremental_update_index()增量索引更新\n- _save()仅用于delete/clear等少量场景\n- 新增子Agent: test_writer(测试生成), evolution_planner(进化策略)", "metadata": {}}
 {"timestamp": "2026-06-12T17:56:09.334557", "type": "tool_added", "description": "通过 add_tool_to_self 添加工具: quality_gate_check (类别: evolution)", "metadata": {}}
+{"timestamp": "2026-06-12T17:57:39.361642", "type": "code_committed", "description": "Git 提交: feat(quality-gate): 质量门禁系统 + 修复\n\n- 新增 quality_gate.py: 三阶段检查(PRE/INLINE/POST)，完全基于规则，零延迟\n- 新增 quality_gate_check 工具: 可主动调用门禁检查\n- 检测危险模式(rm -rf, eval, exec 等)、代码质量问题\n- 修复: json import 问题、_ALL_TOOLS 引用顺序\n- memory.py 增量写入优化 (O(n)→O(1))\n- 新增子Agent: test_writer, evolution_planner", "metadata": {}}
+{"timestamp": "2026-06-12T18:01:25.601840", "type": "tool_added", "description": "通过 add_tool_to_self 添加工具: create_goal (类别: goal)", "metadata": {}}
+{"timestamp": "2026-06-12T18:01:30.698632", "type": "tool_added", "description": "通过 add_tool_to_self 添加工具: list_goals (类别: goal)", "metadata": {}}
+{"timestamp": "2026-06-12T18:01:35.097272", "type": "tool_added", "description": "通过 add_tool_to_self 添加工具: update_goal (类别: goal)", "metadata": {}}
+{"timestamp": "2026-06-12T18:01:39.254054", "type": "tool_added", "description": "通过 add_tool_to_self 添加工具: add_milestone (类别: goal)", "metadata": {}}
+{"timestamp": "2026-06-12T18:01:44.159571", "type": "tool_added", "description": "通过 add_tool_to_self 添加工具: update_milestone (类别: goal)", "metadata": {}}

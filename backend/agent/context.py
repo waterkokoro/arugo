@@ -3,6 +3,7 @@ import asyncio
 import aiosqlite
 from datetime import datetime
 from agent.memory import PersistentMemoryManager
+from agent.goal_manager import get_goal_manager
 
 
 class ContextManager:
@@ -50,26 +51,34 @@ class ContextManager:
         )
         await self.db.commit()
 
-    async def build_context(self, system_prompt: str, inject_memory: bool = True) -> List[Dict[str, str]]:
-        """构建完整的上下文（system prompt + 持久记忆 + 历史消息）
+    async def build_context(self, system_prompt: str, inject_memory: bool = True, inject_goals: bool = True) -> List[Dict[str, str]]:
+        """构建完整的上下文（system prompt + 持久记忆 + 活跃目标 + 历史消息）
 
         Args:
             system_prompt: 系统提示词
             inject_memory: 是否注入持久记忆（默认 True）
+            inject_goals: 是否注入活跃进化目标（默认 True）
         """
         messages = []
 
-        # 1. System prompt（可以包含记忆注入标记）
+        # 1. System prompt（注入持久记忆和活跃目标）
+        enriched_prompt = system_prompt
+        extra_sections = []
+
         if inject_memory:
             memory_context = self.memory.get_context_injection()
             if memory_context:
-                # 将记忆内容注入到 system prompt 中
-                enriched_prompt = f"{system_prompt}\n\n---\n{memory_context}"
-                messages.append({"role": "system", "content": enriched_prompt})
-            else:
-                messages.append({"role": "system", "content": system_prompt})
-        else:
-            messages.append({"role": "system", "content": system_prompt})
+                extra_sections.append(memory_context)
+
+        if inject_goals:
+            goal_context = get_goal_manager().get_context_injection()
+            if goal_context:
+                extra_sections.append(goal_context)
+
+        if extra_sections:
+            enriched_prompt = f"{system_prompt}\n\n---\n" + "\n\n".join(extra_sections)
+
+        messages.append({"role": "system", "content": enriched_prompt})
 
         # 2. 历史消息
         history = await self.get_messages()

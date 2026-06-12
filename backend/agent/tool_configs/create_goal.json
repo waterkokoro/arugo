@@ -1,0 +1,6 @@
+{
+  "name": "create_goal",
+  "description": "@tool\ndef create_goal(title: str, description: str = \"\", priority: int = 3, deadline: str = \"\", tags: str = \"\") -> str:\n    \"\"\"创建一个新的进化目标。用于设定AI需要完成的长期任务，可包含多个里程碑。\n\n    Args:\n        title: 目标标题\n     ",
+  "category": "goal",
+  "parameters": {}
+}

@@ -1,0 +1,6 @@
+{
+  "name": "list_goals",
+  "description": "@tool\ndef list_goals(status: str = \"\") -> str:\n    \"\"\"列出所有进化目标，可按状态过滤。\n\n    Args:\n        status: 状态过滤：active（活跃）, paused（暂停）, completed（已完成）, abandoned（放弃）。留空显示全部\n    \"\"\"\n    from agent.goal_manager ",
+  "category": "goal",
+  "parameters": {}
+}
