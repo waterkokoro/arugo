@@ -409,6 +409,11 @@ def _cmd_help() -> str:
 # 工具描述（人性化）
 # ================================================================
 
+def _fname(path: str) -> str:
+    """从路径中提取文件名"""
+    return path.split("/")[-1] if path else ""
+
+
 def _tool_description(tool_name: str, args: dict) -> str:
     """将工具调用转换为人性化描述"""
     descriptions = {
