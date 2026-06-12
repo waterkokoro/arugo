@@ -276,14 +276,21 @@ class FeishuBot:
         if not self._client or not message_id:
             return
 
+        # Phase 5D: 飞书卡片不支持 LaTeX / 注脚 / HTML，预处理转换
+        text = self._sanitize_for_feishu(text)
+
         chunks = self._split_markdown(text)
         for i, chunk in enumerate(chunks):
             prefix = f"**[{i+1}/{len(chunks)}]**\n" if len(chunks) > 1 else ""
             try:
                 content = json.dumps({
-                    "elements": [
-                        {"tag": "markdown", "content": prefix + chunk}
-                    ]
+                    "schema": "2.0",
+                    "config": {"enable_forward": True},
+                    "body": {
+                        "elements": [
+                            {"tag": "markdown", "content": prefix + chunk}
+                        ]
+                    }
                 })
                 request = (
                     ReplyMessageRequest.builder()
@@ -358,6 +365,93 @@ class FeishuBot:
                 return str(sid)
             return str(sender)
         return 'unknown'
+
+    @staticmethod
+    def _sanitize_for_feishu(text: str) -> str:
+        """将 LLM 输出的 Markdown 转为飞书卡片支持的语法子集。
+
+        飞书 interactive 卡片的 markdown 组件是 CommonMark 子集，不支持：
+          - LaTeX 数学公式 ($...$ / $$...$$)    → 转为行内代码 / 代码块
+          - Markdown 注脚 ([^1])                → 转为 [1] 引用 + 底部附录
+          - HTML 标签 (部分)                    → 剥离或转为 Markdown 等价
+
+        已在飞书正常渲染的语法不受影响（加粗、斜体、列表、表格、代码块等）。
+        """
+        # ── Step 0: 保护已有的飞书兼容代码块和行内代码 ──
+        protected: dict[str, str] = {}
+        counter = [0]
+
+        def _protect(pattern: str, text: str) -> str:
+            """将匹配内容替换为占位符，存到 protected dict"""
+            def _replacer(m):
+                key = f"\x00PROTECTED{counter[0]}\x00"
+                counter[0] += 1
+                protected[key] = m.group(0)
+                return key
+            return re.sub(pattern, _replacer, text, flags=re.DOTALL)
+
+        text = _protect(r'```[^`]*```', text)           # 围栏代码块
+        text = _protect(r'`[^`]+`', text)               # 行内代码
+
+        # ── Step 1: LaTeX 数学公式 ──
+        # 块级公式 $$...$$ → 代码块（先处理，避免与行内冲突）
+        def _replace_block_math(m):
+            formula = m.group(1).strip()
+            return f"\n```latex\n{formula}\n```\n"
+
+        text = re.sub(r'\$\$\s*(.+?)\s*\$\$', _replace_block_math, text, flags=re.DOTALL)
+
+        # 行内公式 $...$ → 行内代码
+        text = re.sub(r'(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)', r'`\1`', text)
+
+        # ── Step 2: Markdown 注脚 ──
+        # 收集所有注脚定义 [^n]: definition
+        footnote_defs: dict[str, str] = {}
+
+        def _collect_footnote_def(m):
+            key = m.group(1)
+            definition = m.group(2).strip()
+            footnote_defs[key] = definition
+            return ""  # 移除定义行
+
+        text = re.sub(r'^\[\^(\S+)\]:\s*(.+?)(?=\n\[|\n\n|\Z)',
+                      _collect_footnote_def, text, flags=re.MULTILINE | re.DOTALL)
+
+        # 替换注脚引用 [^n] → [n]
+        def _replace_footnote_ref(m):
+            key = m.group(1)
+            return f"[{key}]"
+
+        text = re.sub(r'\[\^([^\]]+)\]', _replace_footnote_ref, text)
+
+        # 如果有注脚定义，在文本末尾追加
+        if footnote_defs:
+            lines = ["\n\n---\n\n**脚注：**"]
+            for key in sorted(footnote_defs.keys()):
+                lines.append(f"[{key}] {footnote_defs[key]}")
+            text = text.rstrip() + "\n" + "\n".join(lines)
+
+        # ── Step 3: HTML 标签 → Markdown 等价 ──
+        # <br> / <br/> → 换行
+        text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+        # <strong> / <b> → **
+        text = re.sub(r'<(?:strong|b)>(.*?)</(?:strong|b)>', r'**\1**', text, flags=re.IGNORECASE)
+        # <em> / <i> → *
+        text = re.sub(r'<(?:em|i)>(.*?)</(?:em|i)>', r'*\1*', text, flags=re.IGNORECASE)
+        # <code> → `
+        text = re.sub(r'<code>(.*?)</code>', r'`\1`', text, flags=re.IGNORECASE)
+        # <a href="url">text</a> → [text](url)
+        text = re.sub(r'<a\s+href="([^"]*)"\s*>(.*?)</a>', r'[\2](\1)', text, flags=re.IGNORECASE)
+        # <pre> → 代码块
+        text = re.sub(r'<pre>(.*?)</pre>', r'\n```\n\1\n```\n', text, flags=re.IGNORECASE | re.DOTALL)
+        # 其他 HTML 标签：剥离标签保留内容
+        text = re.sub(r'<[^>]+>', '', text)
+
+        # ── Step 4: 还原被保护的内容 ──
+        for key, value in protected.items():
+            text = text.replace(key, value)
+
+        return text
 
     def _split_markdown(self, text: str) -> list:
         """将 Markdown 文本按段落边界智能分段，避免打断代码块/表格"""
