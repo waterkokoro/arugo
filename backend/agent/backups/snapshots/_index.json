@@ -1,4 +1,23 @@
 {
-  "snapshots": [],
-  "updated_at": "2026-06-12T18:35:45.288254"
+  "snapshots": [
+    {
+      "id": "20260612_184436_472b89",
+      "name": "飞书Bot接入前",
+      "description": "Phase 4 飞书 Bot 集成开始前的完整快照",
+      "created_at": "2026-06-12T18:44:36.827845",
+      "file_count": 16,
+      "total_size": 148035,
+      "trigger": "manual"
+    },
+    {
+      "id": "20260612_185333_63aa09",
+      "name": "飞书集成前",
+      "description": "Phase 4 飞书机器人 WebSocket 长连接集成，全部模块验证通过",
+      "created_at": "2026-06-12T18:53:33.021918",
+      "file_count": 16,
+      "total_size": 149108,
+      "trigger": "manual"
+    }
+  ],
+  "updated_at": "2026-06-12T18:53:33.021932"
 }

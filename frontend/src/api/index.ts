@@ -133,4 +133,28 @@ export const chatApi = {
   },
 }
 
+// 飞书配置 API
+export interface FeishuSettings {
+  enabled: boolean
+  app_id: string
+  app_secret: string
+  verification_token: string
+}
+
+export interface FeishuStatus {
+  enabled: boolean
+  app_id: string
+  has_secret: boolean
+  has_verification_token: boolean
+  connected: boolean
+  event_types: string[]
+}
+
+export const feishuApi = {
+  getConfig: () => api.get<FeishuStatus>('/feishu/config'),
+  updateConfig: (settings: FeishuSettings) => api.put<FeishuStatus>('/feishu/config', settings),
+  restart: () => api.post<{ status: string; message: string }>('/feishu/restart'),
+  getStatus: () => api.get<{ enabled: boolean; configured: boolean; connected: boolean; app_id: string }>('/feishu/status'),
+}
+
 export default api

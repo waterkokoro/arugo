@@ -1,0 +1,146 @@
+{
+  "goals": [
+    {
+      "id": "52685b7b71",
+      "title": "Phase 1: 持久记忆系统",
+      "description": "突破滑动窗口限制，实现跨会话持久记忆。memory.py核心模块 + ContextManager集成 + 自动摘要。",
+      "priority": 5,
+      "status": "completed",
+      "deadline": null,
+      "tags": [
+        "Phase1",
+        "core",
+        "completed"
+      ],
+      "milestones": [
+        {
+          "id": "a3782f02ec",
+          "title": "memory.py 核心模块",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "MemoryStore + SessionSummary + PersistentMemoryManager 三层架构",
+          "created_at": "2026-06-12T18:03:31.705631",
+          "completed_at": "2026-06-12T18:03:31.706229"
+        },
+        {
+          "id": "11cba0781a",
+          "title": "ContextManager 集成",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "build_context() 自动注入持久记忆到系统提示词",
+          "created_at": "2026-06-12T18:03:31.705975",
+          "completed_at": "2026-06-12T18:03:31.706230"
+        },
+        {
+          "id": "0514bba728",
+          "title": "自动摘要机制",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "窗口使用率>80%时自动触发会话摘要保存",
+          "created_at": "2026-06-12T18:03:31.706122",
+          "completed_at": "2026-06-12T18:03:31.706231"
+        }
+      ],
+      "created_at": "2026-06-12T18:03:31.705424",
+      "updated_at": "2026-06-12T18:03:31.706227"
+    },
+    {
+      "id": "b74e9db2b6",
+      "title": "Phase 2: 目标与里程碑管理器",
+      "description": "实现跨会话的进化目标追踪系统。goal_manager.py + 5个管理工具 + Context集成。",
+      "priority": 5,
+      "status": "completed",
+      "deadline": null,
+      "tags": [
+        "Phase2",
+        "core",
+        "in_progress"
+      ],
+      "milestones": [
+        {
+          "id": "7d9826bff7",
+          "title": "goal_manager.py 核心模块",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "Goal + Milestone + GoalManager 完整数据结构与JSON持久化",
+          "created_at": "2026-06-12T18:03:31.706420",
+          "completed_at": "2026-06-12T18:03:38.383024"
+        },
+        {
+          "id": "a7ee2abff0",
+          "title": "5个工具热加载",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "create_goal, list_goals, update_goal, add_milestone, update_milestone 全部可用",
+          "created_at": "2026-06-12T18:03:31.706517",
+          "completed_at": "2026-06-12T18:03:38.383250"
+        },
+        {
+          "id": "c4c17ee6a7",
+          "title": "ContextManager 目标注入",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "build_context() 自动注入活跃进化目标摘要",
+          "created_at": "2026-06-12T18:03:31.706681",
+          "completed_at": "2026-06-12T18:03:38.383755"
+        },
+        {
+          "id": "e073550018",
+          "title": "system_prompt 更新",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "反映目标追踪能力和进化路线图",
+          "created_at": "2026-06-12T18:03:31.706779",
+          "completed_at": "2026-06-12T18:03:48.825537"
+        }
+      ],
+      "created_at": "2026-06-12T18:03:31.706333",
+      "updated_at": "2026-06-12T18:03:52.326820"
+    },
+    {
+      "id": "ddbebd5973",
+      "title": "Phase 3: 沙盒执行环境与快照回滚",
+      "description": "实现多文件原子快照系统，让 AI 能在重大操作前创建全状态恢复点，失败后一键回滚。包括 sandbox.py 模块、4个快照工具、质量门禁集成自动快照。",
+      "priority": 4,
+      "status": "completed",
+      "deadline": null,
+      "tags": [
+        "Phase3",
+        "核心能力",
+        "安全"
+      ],
+      "milestones": [
+        {
+          "id": "acccd3d456",
+          "title": "创建 sandbox.py 模块",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "SnapshotManager 类实现：create_snapshot, list_snapshots, restore_snapshot, delete_snapshot, pre_flight_snapshot, get_snapshot_report",
+          "created_at": "2026-06-12T18:35:52.051532",
+          "completed_at": "2026-06-12T18:35:55.457945"
+        },
+        {
+          "id": "0e05169136",
+          "title": "添加 4 个快照工具到 tools.py",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "create_snapshot, list_snapshots, restore_snapshot, delete_snapshot 在 tools.py 中注册并可在 tool calling 中使用",
+          "created_at": "2026-06-12T18:35:52.052284",
+          "completed_at": "2026-06-12T18:35:55.458802"
+        },
+        {
+          "id": "ca7927d74e",
+          "title": "质量门禁 × 沙盒集成",
+          "status": "completed",
+          "progress": 100,
+          "completion_criteria": "quality_gate.full_gate_check 在 medium+ 风险操作前自动触发快照",
+          "created_at": "2026-06-12T18:35:52.052851",
+          "completed_at": "2026-06-12T18:35:55.459452"
+        }
+      ],
+      "created_at": "2026-06-12T18:35:48.000477",
+      "updated_at": "2026-06-12T18:35:55.460073"
+    }
+  ],
+  "updated_at": "2026-06-12T18:35:55.460081"
+}

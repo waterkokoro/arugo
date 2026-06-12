@@ -117,22 +117,20 @@ async def search_brave(query: str, max_results: int, api_key: str) -> list[Searc
 
 
 async def search_anysearch_free(query: str, max_results: int) -> list[SearchResult]:
-    """AnySearch Free: 匿名免费，无需认证，兑底方案"""
+    """AnySearch Free: 匿名免费，无需认证，兜底方案"""
     async with httpx.AsyncClient(timeout=SEARCH_TIMEOUT) as client:
         resp = await client.post(
             "https://api.anysearch.com/v1/search",
-            json={"query": query, "max_results": max_results},
+            json={"q": query, "num": max_results},
         )
         resp.raise_for_status()
         data = resp.json()
-        # AnySearch 返回嵌套在 data.results 中
-        results_data = data.get("data", {}).get("results", [])
         results = []
-        for r in results_data[:max_results]:
+        for r in data.get("results", [])[:max_results]:
             results.append(SearchResult(
                 title=r.get("title", ""),
                 url=r.get("url", ""),
-                content=r.get("snippet", r.get("content", r.get("description", ""))),
+                content=r.get("content", r.get("description", r.get("snippet", ""))),
             ))
         return results
 
@@ -249,12 +247,7 @@ async def verify_search_key(provider: str, api_key: str) -> bool:
 def format_search_results(payload: SearchPayload) -> str:
     """将搜索结果格式化为编号列表，供 LLM 上下文使用"""
     if not payload.results:
-        # 包含诊断信息，帮助排查问题
-        diag = []
-        for a in payload.attempts:
-            diag.append(f"  {a.provider}: {a.status}" + (f" ({a.error})" if a.error else ""))
-        diag_text = "\n".join(diag) if diag else "无尝试记录"
-        return f"未找到相关搜索结果。\n诊断信息:\n{diag_text}"
+        return "未找到相关搜索结果。"
 
     lines = [f"[联网搜索结果 (来源: {payload.provider})]\n"]
     for i, r in enumerate(payload.results[:10], 1):

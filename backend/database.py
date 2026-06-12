@@ -47,6 +47,8 @@ async def init_db():
             # 联网搜索默认配置
             "search_provider": "auto",
             "search_api_keys": "{}",
+            # 飞书机器人默认配置
+            "feishu_config": '{"enabled": false, "app_id": "", "app_secret": "", "verification_token": "", "event_types": ["im.message.receive_v1"]}',
         }
 
         for key, value in defaults.items():

@@ -157,6 +157,55 @@
           </template>
         </n-form-item>
 
+        <n-divider title-placement="left">🦜 飞书机器人配置</n-divider>
+
+        <n-form-item label="启用飞书机器人">
+          <n-switch v-model:value="feishu.enabled" />
+          <template #feedback>
+            <span style="color: #999; font-size: 12px;">
+              使用 WebSocket 长连接模式，无需公网 IP。需先在
+              <n-a href="https://open.feishu.cn/app" target="_blank">飞书开放平台</n-a>
+              创建企业自建应用。
+            </span>
+          </template>
+        </n-form-item>
+
+        <n-form-item v-if="feishu.enabled" label="App ID">
+          <n-input
+            v-model:value="feishu.app_id"
+            placeholder="cli_xxxxxxxxxxxx"
+          />
+        </n-form-item>
+
+        <n-form-item v-if="feishu.enabled" label="App Secret">
+          <n-input
+            v-model:value="feishu.app_secret"
+            type="password"
+            show-password-on="click"
+            placeholder="飞书应用 App Secret"
+          />
+        </n-form-item>
+
+        <n-form-item v-if="feishu.enabled" label="验证 Token">
+          <n-input
+            v-model:value="feishu.verification_token"
+            type="password"
+            show-password-on="click"
+            placeholder="事件订阅 Verification Token（可选）"
+          />
+        </n-form-item>
+
+        <n-form-item v-if="feishu.enabled && feishuStatus.configured">
+          <n-space>
+            <n-tag :type="feishuStatus.connected ? 'success' : 'warning'" size="small">
+              {{ feishuStatus.connected ? '🟢 已连接' : '🟡 未连接' }}
+            </n-tag>
+            <n-button size="small" @click="handleRestartFeishu" :loading="restarting">
+              重启机器人
+            </n-button>
+          </n-space>
+        </n-form-item>
+
         <n-form-item>
           <n-space>
             <n-button type="primary" @click="handleSave" :loading="saving">
@@ -177,9 +226,10 @@ import { ref, reactive, onMounted } from 'vue'
 import {
   NCard, NForm, NFormItem, NInput, NInputNumber, NInputGroup,
   NButton, NSpace, NDivider, NRadio, NRadioGroup, NA,
+  NSwitch, NTag,
   useMessage
 } from 'naive-ui'
-import { settingsApi, type Settings } from '@/api'
+import { settingsApi, feishuApi, type Settings, type FeishuStatus } from '@/api'
 
 const message = useMessage()
 
@@ -240,9 +290,26 @@ async function handleSave() {
   saving.value = true
   try {
     await settingsApi.update(settings.value)
+    // 同时保存飞书配置
+    if (feishu.enabled) {
+      await feishuApi.updateConfig({
+        enabled: feishu.enabled,
+        app_id: feishu.app_id,
+        app_secret: feishu.app_secret,
+        verification_token: feishu.verification_token,
+      })
+    } else {
+      await feishuApi.updateConfig({
+        enabled: false,
+        app_id: feishu.app_id,
+        app_secret: '',
+        verification_token: '',
+      })
+    }
     message.success('配置已保存')
-  } catch (error) {
-    message.error('保存失败')
+    await loadFeishuConfig()
+  } catch (error: any) {
+    message.error(error?.response?.data?.detail || '保存失败')
   } finally {
     saving.value = false
   }
@@ -269,15 +336,65 @@ async function handleVerifyKey(provider: string) {
   }
 }
 
+// ========================================
+// 飞书配置
+// ========================================
+const feishu = reactive({
+  enabled: false,
+  app_id: '',
+  app_secret: '',
+  verification_token: '',
+})
+const feishuStatus = ref<FeishuStatus>({
+  enabled: false,
+  app_id: '',
+  has_secret: false,
+  has_verification_token: false,
+  connected: false,
+  event_types: [],
+})
+const restarting = ref(false)
+
+async function loadFeishuConfig() {
+  try {
+    const res = await feishuApi.getConfig()
+    feishuStatus.value = res.data
+    feishu.enabled = res.data.enabled
+    feishu.app_id = res.data.app_id
+    // secret 不填充，需要用户重新输入
+  } catch {
+    // 忽略
+  }
+}
+
+async function handleRestartFeishu() {
+  restarting.value = true
+  try {
+    const res = await feishuApi.restart()
+    message.info(res.data.message)
+    // 刷新状态
+    await loadFeishuConfig()
+  } catch {
+    message.error('重启失败')
+  } finally {
+    restarting.value = false
+  }
+}
+
 function handleReset() {
   settings.value = { ...defaultSettings }
   apiKeys.tavily = ''
   apiKeys.serper = ''
   apiKeys.brave = ''
+  feishu.enabled = false
+  feishu.app_id = ''
+  feishu.app_secret = ''
+  feishu.verification_token = ''
 }
 
 onMounted(() => {
   loadSettings()
+  loadFeishuConfig()
 })
 </script>
 
