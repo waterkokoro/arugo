@@ -228,21 +228,78 @@ def create_message_handler(
 
                 llm_client = LLMClient.from_config(llm_config)
 
-                # Agent 模式流式收集
+                # ── Phase 5F: Agent 流式处理 + 动态进度推送 + 执行追踪 ──
                 full_reply = ""
+                trace_events: list[dict] = []  # 完整执行追踪（用于循环文件存储）
+                pending_tool: str = ""          # 当前等待结果的工具名
+                tool_count = 0
+                tool_start_time = None
+
+                import time as _time
                 from agent.config import get_agent_config_int, get_agent_config_bool
                 max_iter = await get_agent_config_int("agent_max_iterations", 200)
                 deep = await get_agent_config_bool("agent_deep_thinking_default", False)
                 web = await get_agent_config_bool("agent_web_search_default", True)
+
                 async for event in llm_client.agent_stream(
                     context, max_iterations=max_iter,
                     deep_thinking=deep,
                     web_search_enabled=web,
                 ):
-                    if event.type == "content" and event.content:
+                    # ── 记录事件到追踪 ──
+                    trace_events.append(event.to_dict())
+
+                    if event.type == "thinking":
+                        # 思考过程：仅在第一个 thinking 事件时推送一次
+                        if not pending_tool and tool_count == 0:
+                            if progress_callback:
+                                await progress_callback("🧠 正在思考...")
+
+                    elif event.type == "tool_call":
+                        tool_count += 1
+                        pending_tool = event.tool
+                        tool_start_time = _time.time()
+                        # 人性化工具描述
+                        desc = _tool_description(event.tool, event.tool_args)
+                        if progress_callback:
+                            await progress_callback(f"🔧 [{tool_count}] {desc}")
+
+                    elif event.type == "tool_result":
+                        elapsed = ""
+                        if tool_start_time:
+                            elapsed = f" ({_time.time() - tool_start_time:.1f}s)"
+                        # 截断结果用于展示
+                        result_preview = event.tool_result[:80].replace('\n', ' ')
+                        status = "✅" if "失败" not in event.tool_result and "错误" not in event.tool_result else "❌"
+                        if progress_callback:
+                            await progress_callback(
+                                f"   {status} {pending_tool or event.tool} → {result_preview}{elapsed}"
+                            )
+                        pending_tool = ""
+                        tool_start_time = None
+
+                    elif event.type == "content" and event.content:
                         full_reply += event.content
+
                     elif event.type == "error":
                         full_reply += f"\n[错误] {event.content}"
+                        if progress_callback:
+                            await progress_callback(f"❌ {event.content[:150]}")
+
+                # ── 保存执行追踪到循环文件 ──
+                try:
+                    from feishu.execution_log import save_execution
+                    save_execution({
+                        "message_id": message_id,
+                        "sender_id": sender_id,
+                        "chat_id": chat_id,
+                        "text": text[:500],
+                        "reply": (full_reply or "")[:2000],
+                        "tool_count": tool_count,
+                        "events": trace_events,
+                    })
+                except Exception:
+                    pass  # 存储失败不影响主流程
 
                 reply = full_reply or "收到你的消息了，但没能生成回复 😅"
 
@@ -314,6 +371,10 @@ async def _try_handle_command(text: str) -> Optional[str]:
     # /memory — 记忆管理（含子命令）
     if cmd in ("memory", "记忆", "m"):
         return await _cmd_memory_dispatch(args)
+
+    # /exec — 执行历史
+    if cmd in ("exec", "执行记录", "history", "e"):
+        return await _cmd_exec_history(args)
 
     # /help — 帮助
     if cmd in ("help", "帮助", "h", "?"):
@@ -835,6 +896,83 @@ async def _cmd_memory_clean(args: str = "") -> str:
     )
 
 
+async def _cmd_exec_history(args: str) -> str:
+    """查看执行记录
+
+    /exec          → 最近 5 条摘要
+    /exec <N>      → 第 N 条记录详情（含完整事件流）
+    /exec stats    → 存储统计
+    """
+    from feishu.execution_log import list_executions, get_execution, get_stats
+
+    if args.strip().lower() in ("stats", "统计", "stat"):
+        s = get_stats()
+        return "\n".join([
+            "📋 **执行记录存储**",
+            "",
+            f"   文件数: {s['file_count']}/{s['max_files']}",
+            f"   存储大小: {s['total_size_kb']} KB",
+            f"   目录: `{s['dir']}`",
+        ])
+
+    # 查看特定记录详情
+    try:
+        record_id = int(args.strip())
+        record = get_execution(record_id)
+        if not record:
+            return f"❌ 未找到第 {record_id} 条记录。"
+
+        events_lines = []
+        for ev in record.get("events", []):
+            t = ev.get("type", "?")
+            if t == "thinking":
+                events_lines.append(f"   🧠 思考中...")
+            elif t == "tool_call":
+                events_lines.append(f"   🔧 调用 {ev.get('tool', '?')}")
+            elif t == "tool_result":
+                preview = (ev.get("tool_result", "") or "")[:60].replace('\n', ' ')
+                events_lines.append(f"   ✅ {ev.get('tool', '?')} → {preview}")
+            elif t == "content":
+                events_lines.append(f"   💬 {ev.get('content', '')[:80]}")
+            elif t == "error":
+                events_lines.append(f"   ❌ {ev.get('content', '')[:80]}")
+
+        return "\n".join([
+            f"📋 **执行记录 #{record['id']}**",
+            "",
+            f"   时间: {record.get('timestamp', '?')[:19]}",
+            f"   用户: {record.get('sender_id', '?')[:20]}...",
+            f"   消息: {record.get('text', '?')[:100]}",
+            f"   工具调用: {record.get('tool_count', 0)} 次",
+            f"   回复: {(record.get('reply', '') or '')[:150]}",
+            "",
+            "**事件流：**",
+        ] + (events_lines or ["   （无事件）"]) + [
+            "",
+            f"`/exec` 返回列表",
+        ])
+    except ValueError:
+        pass  # 不是数字，继续看列表
+
+    # 列表模式
+    records = list_executions(limit=5)
+    if not records:
+        return "📋 暂无执行记录。在飞书 @阿尔戈 发一条消息后就会出现。"
+
+    lines = ["📋 **最近执行记录**", ""]
+    for r in records:
+        ts = r.get("timestamp", "")[11:19] if r.get("timestamp") else "?"
+        text_preview = (r.get("text", "") or "")[:40]
+        tools = r.get("tool_count", 0)
+        lines.append(
+            f"   `#{r['id']:02d}` {ts} | 🔧×{tools} | {text_preview}"
+        )
+
+    lines.append("")
+    lines.append("`/exec <编号>` 查看详情 | `/exec stats` 存储统计")
+    return "\n".join(lines)
+
+
 def _cmd_help() -> str:
     """帮助"""
     return "\n".join([
@@ -846,6 +984,8 @@ def _cmd_help() -> str:
         "🔧 `/tools`      — 工具清单",
         "🎯 `/goals`      — 目标进度",
         "🩺 `/diagnose`   — 自诊断报告",
+        "📋 `/exec`       — 查看最近执行记录",
+        "   `/exec <N>`   — 查看第 N 条记录的详情",
         "❓ `/help`       — 本帮助",
         "",
         "🧠 **记忆管理**",
@@ -855,7 +995,6 @@ def _cmd_help() -> str:
         "`/memory delete <ID>` — 删除",
         "`/memory tags`       — 标签列表",
         "`/memory stats`      — 统计",
-        "`/memory clean`      — 清空",
         "",
         "💬 直接发送消息进入 AI 对话。",
     ])
