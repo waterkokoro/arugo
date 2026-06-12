@@ -18,7 +18,7 @@ from agent.memory import PersistentMemoryManager, MemoryEntry
 
 BLOCKED_COMMANDS = [
     "rm -rf", "rm -r", "sudo", "chmod 777", "chmod -R 777",
-    "mkfs", "dd if=", "> /dev/sda", ":(){ :|:& };:", "wget", "curl",
+    "mkfs", "dd if=", "> /dev/sda", ":(){ :|:& };:",
 ]
 
 
