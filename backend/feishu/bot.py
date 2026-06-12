@@ -230,11 +230,9 @@ class FeishuBot:
 
             try:
                 if self._handler_factory:
-                    # 每条消息创建独立的 progress_callback（绑定 message_id）
-                    async def progress_callback(status_text: str):
-                        await self._reply_via_rest(message_id, status_text)
-
-                    handler = self._handler_factory(progress_callback)
+                    # 飞书端不推送中间过程（thinking / tool_call / tool_result）
+                    # progress_callback 传 None，handler 内部分支自动跳过
+                    handler = self._handler_factory(None)
                     reply = await handler(sender_id, text, chat_id, message_id)
                 else:
                     reply = "机器人还未配置消息处理器。"

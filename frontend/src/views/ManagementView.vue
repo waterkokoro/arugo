@@ -3,7 +3,7 @@
     <n-tabs type="line" animated v-model:value="activeTab">
       <!-- 概览 -->
       <n-tab-pane name="overview" tab="📊 概览">
-        <OverviewPanel />
+        <OverviewPanel @nav="activeTab = $event" />
       </n-tab-pane>
 
       <!-- 角色模板 -->
@@ -35,6 +35,11 @@
       <n-tab-pane name="evolution" tab="📈 进化">
         <EvolutionPanel />
       </n-tab-pane>
+
+      <!-- 健康仪表盘 -->
+      <n-tab-pane name="health" tab="🩺 健康">
+        <HealthPanel />
+      </n-tab-pane>
     </n-tabs>
   </div>
 </template>
@@ -49,6 +54,7 @@ import GoalsPanel from '../components/GoalsPanel.vue'
 import SnapshotsPanel from '../components/SnapshotsPanel.vue'
 import MemoriesPanel from '../components/MemoriesPanel.vue'
 import EvolutionPanel from '../components/EvolutionPanel.vue'
+import HealthPanel from '../components/HealthPanel.vue'
 
 const activeTab = ref('overview')
 </script>

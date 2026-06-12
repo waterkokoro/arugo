@@ -435,7 +435,66 @@ async def get_evolution_events(limit: int = 50):
 
 
 # ============================================================
-# 7. 全局概览 API（管理面板首页用）
+# 7. 健康检查 API（Phase 5C）
+# ============================================================
+
+@router.get("/health")
+async def get_health(smoke: bool = False):
+    """运行自我诊断，返回健康报告。
+    
+    Args:
+        smoke: True 则只运行快速检查（<5秒）
+    """
+    import asyncio
+    from agent.self_diagnostics import get_diagnostics
+    
+    diag = get_diagnostics()
+    
+    # 在线程池中运行（诊断包含 subprocess 调用）
+    loop = asyncio.get_event_loop()
+    if smoke:
+        report = await loop.run_in_executor(None, diag.quick_health)
+    else:
+        report = await loop.run_in_executor(None, diag.run_all)
+    
+    return report
+
+
+# ============================================================
+# 8. 工具清单 API（Phase 5C）
+# ============================================================
+
+@router.get("/tools")
+async def list_tools_api():
+    """列出所有可用工具的清单（名称、描述、类别）"""
+    from agent.tool_registry import get_tool_registry
+    
+    registry = get_tool_registry()
+    all_tools = registry.list_all()
+    
+    # 按类别分组
+    categories: dict[str, list[dict]] = {}
+    for t in all_tools:
+        cat = t.category or "uncategorized"
+        if cat not in categories:
+            categories[cat] = []
+        categories[cat].append({
+            "name": t.name,
+            "description": t.description or "",
+            "category": cat,
+            "executable": t.func is not None,
+        })
+    
+    return {
+        "total": len(all_tools),
+        "executable": sum(1 for t in all_tools if t.func),
+        "categories": {k: [t["name"] for t in v] for k, v in categories.items()},
+        "tools": [t for cat_list in categories.values() for t in cat_list],
+    }
+
+
+# ============================================================
+# 9. 全局概览 API（管理面板首页用）
 # ============================================================
 
 @router.get("/overview")
@@ -445,16 +504,18 @@ async def get_overview():
     from agent.goal_manager import get_goal_manager
     from agent.agent_factory import get_agent_factory
     from agent.sandbox import get_snapshot_manager
+    from agent.tool_registry import get_tool_registry
 
     mem = PersistentMemoryManager()
     gm = get_goal_manager()
     factory = get_agent_factory()
     snap_mgr = get_snapshot_manager()
+    registry = get_tool_registry()
 
     goals = gm.list_goals()
     agents = factory.list_all()
     snapshots = snap_mgr.list_snapshots()
-    mem_stats = mem.get_stats()
+    all_tools = registry.list_all()
 
     return {
         "memories": {
@@ -474,5 +535,9 @@ async def get_overview():
         "snapshots": {
             "total": len(snapshots),
             "total_size_kb": round(sum(s.total_size for s in snapshots) / 1024, 1),
+        },
+        "tools": {
+            "total": len(all_tools),
+            "executable": sum(1 for t in all_tools if t.func),
         },
     }

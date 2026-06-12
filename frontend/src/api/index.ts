@@ -305,6 +305,7 @@ export interface Overview {
   goals: { total: number; active: number; completed: number }
   agents: { total: number; idle: number }
   snapshots: { total: number; total_size_kb: number }
+  tools: { total: number; executable: number }
 }
 
 export const overviewApi = {
