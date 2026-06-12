@@ -79,9 +79,9 @@ async def update_config(settings: FeishuSettings):
     bot = get_feishu_bot(config)
 
     if bot and config.enabled:
-        # 注入消息处理器
+        # 注入消息处理器工厂
         from feishu.message_handler import create_message_handler
-        bot.set_message_handler(create_message_handler())
+        bot.set_handler_factory(create_message_handler)
 
         # 用 create_task 启动后台连接，避免事件循环冲突
         asyncio.create_task(_connect_bot(bot))
@@ -109,7 +109,7 @@ async def restart_bot():
 
     if bot:
         from feishu.message_handler import create_message_handler
-        bot.set_message_handler(create_message_handler())
+        bot.set_handler_factory(create_message_handler)
 
         # 后台启动，不阻塞 API
         asyncio.create_task(_connect_bot(bot))

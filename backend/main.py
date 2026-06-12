@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     if feishu_config.enabled and feishu_config.app_id and feishu_config.app_secret:
         reset_feishu_bot()
         bot = FeishuBot(feishu_config)
-        bot.set_message_handler(create_message_handler())
+        bot.set_handler_factory(create_message_handler)
 
         # WebSocket connect 是阻塞调用，放入后台任务避免阻塞 HTTP 服务启动
         bot_task = asyncio.create_task(bot.connect())

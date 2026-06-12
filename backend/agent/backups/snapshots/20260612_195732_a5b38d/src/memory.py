@@ -244,19 +244,6 @@ class MemoryStore:
         self.entries = []
         self._save()
 
-    def count(self) -> int:
-        """返回记忆总数"""
-        return len(self.entries)
-
-    def list_recent(self, limit: int = 10) -> list[MemoryEntry]:
-        """返回最近的记忆条目"""
-        sorted_entries = sorted(
-            self.entries,
-            key=lambda e: (e.importance, e.timestamp),
-            reverse=True
-        )
-        return sorted_entries[:limit]
-
 
 # ============================================================
 # 会话摘要管理
@@ -376,11 +363,3 @@ class PersistentMemoryManager:
     def get_evolution_log(self, limit: int = 20) -> list[dict]:
         """获取进化日志"""
         return self.session.get_evolution_log(limit)
-
-    def count(self) -> int:
-        """返回持久记忆总数"""
-        return self.store.count()
-
-    def list_recent(self, limit: int = 10) -> list[MemoryEntry]:
-        """返回最近的记忆条目"""
-        return self.store.list_recent(limit)

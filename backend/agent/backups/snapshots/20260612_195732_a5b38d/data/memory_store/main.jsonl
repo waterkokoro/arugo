@@ -1,0 +1,72 @@
+{"id": "15b7656f2ae5", "content": "用户arugo的优先级：1) AI自身能力优化（记忆持久化、Agent生成、工具扩展）优先于交互体验优化；2) 遇到权限问题时主动提出讨论，不完全服从现状；3) 用户可通过vibe coding工具辅助更新代码；4) 代码仓库位于 ~/code/arugo，通过聊天窗口交互", "category": "learned", "importance": 5, "tags": ["用户偏好", "进化协议", "核心决策"], "timestamp": "2026-06-12T17:24:30.549143", "source_session": null}
+{"id": "81f84c8e4a8a", "content": "当前系统架构：FastAPI后端 + Vue3前端 + SQLite持久化。Agent模块包含tools.py(22个工具)、memory.py(持久记忆)、agent_factory.py(子Agent管理)、tool_registry.py(动态工具注册)。系统允许的命令白名单：ls,cat,head,tail,grep,find,git status,git diff,git log,git add,git commit,python,pip,npm,node,pytest", "category": "learned", "importance": 5, "tags": ["系统架构", "技术栈", "命令白名单"], "timestamp": "2026-06-12T17:24:30.549972", "source_session": null}
+{"id": "964ef1a9f5f8", "content": "当前系统架构：FastAPI后端 + Vue3前端 + SQLite持久化。Agent模块包含tools.py(22个工具)、memory.py(持久记忆)、agent_factory.py(子Agent管理)、tool_registry.py(动态工具注册)。系统允许的命令白名单：ls,cat,head,tail,grep,find,git status,git diff,git log,git add,git commit,python,pip,npm,node,pytest", "category": "learned", "importance": 5, "tags": ["系统架构", "技术栈", "命令白名单"], "timestamp": "2026-06-12T17:51:13.903346", "source_session": null}
+{"id": "f606ab2fd0c5", "content": "用户arugo的优先级：1) AI自身能力优化（记忆持久化、Agent生成、工具扩展）优先于交互体验优化；2) 遇到权限问题时主动提出讨论，不完全服从现状；3) 用户可通过vibe coding工具辅助更新代码；4) 代码仓库位于 ~/code/arugo，通过聊天窗口交互", "category": "learned", "importance": 5, "tags": ["用户偏好", "进化协议", "核心决策"], "timestamp": "2026-06-12T17:51:13.904453", "source_session": null}
+{"id": "3de12f814277", "content": "code_reviewer子Agent已成功调用，Agent工厂闭环验证通过。子Agent指出memory.py的几个问题：1) _save()每次add都全量写入，性能风险；2) 缺少类型注解；3) 无异步支持（与FastAPI不匹配）；4) 索引在每次保存时重建，可优化为增量更新。", "category": "learned", "importance": 4, "tags": ["进化", "代码审查", "memory"], "timestamp": "2026-06-12T17:53:37.664609", "source_session": null}
+{"id": "441f2029af74", "content": "Phase 2 目标与里程碑管理器已完成。新增 goal_manager.py 模块，5个工具(create_goal, list_goals, update_goal, add_milestone, update_milestone)，ContextManager 集成了目标注入。修复了 add_tool_to_self 生成的注册代码引用未定义 _ALL_TOOLS 的 bug（改为 _GOAL_TOOLS 列表方式）。Phase 1&2 目标已创建并标记完成。工具总数31个。", "category": "learned", "importance": 5, "tags": ["Phase2", "进化", "goal_manager"], "timestamp": "2026-06-12T18:04:10.981263", "source_session": null}
+{"id": "5d80e63f0474", "content": "add_tool_to_self 存在已知bug：生成的注册代码在 _ALL_TOOLS 定义之前引用它导致 NameError。临时修复：手动删除注册块，改用 _GOAL_TOOLS 列表方式。需永久修复 add_tool_to_self 函数本身，使其不在插入代码中引用 _ALL_TOOLS，改为仅依赖 ToolRegistry 注册。", "category": "learned", "importance": 4, "tags": ["bug", "add_tool_to_self", "待修复"], "timestamp": "2026-06-12T18:04:10.982230", "source_session": null}
+{"id": "18de7f164d63", "content": "Phase 3 沙盒快照系统已完成。新增 sandbox.py 模块（SnapshotManager 类），4个快照工具（create_snapshot, list_snapshots, restore_snapshot, delete_snapshot），质量门禁在 medium+ 风险操作前自动触发快照。快照覆盖所有 agent 源码 + system_prompt.txt + memory_store + goal_store。最多20个快照，超出自动清理。恢复前自动创建安全快照。工具总数35个。", "category": "learned", "importance": 5, "tags": ["Phase3", "沙盒", "核心能力", "已完成"], "timestamp": "2026-06-12T18:36:09.277526", "source_session": null}
+{"id": "6b9f1c22b3a7", "content": "[Phase4, 飞书, 已完成, 核心架构]: Phase 4 飞书机器人集成已完成。使用 lark_oapi.channel.FeishuChannel WebSocket 长连接模式，无需公网IP。架构：backend/feishu/bot.py (FeishuBot) + config.py (DB持久化) + routers/feishu.py (REST API)。消息流：飞书→WebSocket→FeishuChannel→消息队列→Agent LLM→回复。前端 Settings 页面新增飞书配置卡片（App ID / App Secret / 启用开关）。Bot 随 FastAPI lifespan 启停。支持配置 CRUD、连接状态查询、手动重启。当前仅支持文本消息。", "category": "learned", "importance": 5, "tags": ["Phase4", "飞书", "架构", "已完成"], "timestamp": "2026-06-12T18:53:49.704541", "source_session": null}
+{"id": "68ef9e9a85da", "content": "用户喜欢深色主题", "category": "user_preference", "importance": 5, "tags": ["偏好", "UI"], "timestamp": "2026-06-12T19:49:07.897687", "source_session": null}
+{"id": "1fe54ff312c4", "content": "A decision", "category": "decision", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.898322", "source_session": null}
+{"id": "870f9c360927", "content": "A preference", "category": "user_preference", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.898467", "source_session": null}
+{"id": "e18a718c3df7", "content": "Tagged A", "category": "general", "importance": 1, "tags": ["alpha"], "timestamp": "2026-06-12T19:49:07.898933", "source_session": null}
+{"id": "f4040f28289c", "content": "Tagged B", "category": "general", "importance": 1, "tags": ["beta"], "timestamp": "2026-06-12T19:49:07.899090", "source_session": null}
+{"id": "088b6cf61e10", "content": "A", "category": "cat1", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.899535", "source_session": null}
+{"id": "e9461ebfc1d3", "content": "B", "category": "cat2", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.899675", "source_session": null}
+{"id": "7307af5d363d", "content": "A", "category": "general", "importance": 1, "tags": ["t1", "t2"], "timestamp": "2026-06-12T19:49:07.900127", "source_session": null}
+{"id": "cb59d2853e61", "content": "B", "category": "general", "importance": 1, "tags": ["t2", "t3"], "timestamp": "2026-06-12T19:49:07.900274", "source_session": null}
+{"id": "041f9d734edf", "content": "Low", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.900731", "source_session": null}
+{"id": "f33441eba214", "content": "High", "category": "general", "importance": 5, "tags": [], "timestamp": "2026-06-12T19:49:07.900883", "source_session": null}
+{"id": "2764fdceabfa", "content": "Memory 0", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.901365", "source_session": null}
+{"id": "f8a2da979442", "content": "Memory 1", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.901509", "source_session": null}
+{"id": "4f7ce669323a", "content": "Memory 2", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.901648", "source_session": null}
+{"id": "94f3bd75c083", "content": "Memory 3", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.901788", "source_session": null}
+{"id": "a492e8d7560e", "content": "Memory 4", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.901926", "source_session": null}
+{"id": "6b9bdcce5683", "content": "Memory 5", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.902068", "source_session": null}
+{"id": "dac388c6927f", "content": "Memory 6", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.902220", "source_session": null}
+{"id": "aacbb1b71d8b", "content": "Memory 7", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.902369", "source_session": null}
+{"id": "94cccd379474", "content": "Memory 8", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.902526", "source_session": null}
+{"id": "39c3c92b0071", "content": "Memory 9", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:49:07.902665", "source_session": null}
+{"id": "fafff6424a49", "content": "用户喜欢深色主题", "category": "user_preference", "importance": 5, "tags": ["偏好", "UI"], "timestamp": "2026-06-12T19:50:01.222472", "source_session": null}
+{"id": "51e5cc3e79a6", "content": "A decision", "category": "decision", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.223084", "source_session": null}
+{"id": "0d6e3624aa31", "content": "A preference", "category": "user_preference", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.223269", "source_session": null}
+{"id": "b092551de493", "content": "Tagged A", "category": "general", "importance": 1, "tags": ["alpha"], "timestamp": "2026-06-12T19:50:01.223820", "source_session": null}
+{"id": "e21dec3ed770", "content": "Tagged B", "category": "general", "importance": 1, "tags": ["beta"], "timestamp": "2026-06-12T19:50:01.223990", "source_session": null}
+{"id": "46cc4b6f9126", "content": "A", "category": "cat1", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.224551", "source_session": null}
+{"id": "b0b09361b39c", "content": "B", "category": "cat2", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.224727", "source_session": null}
+{"id": "15238e5328af", "content": "A", "category": "general", "importance": 1, "tags": ["t1", "t2"], "timestamp": "2026-06-12T19:50:01.225302", "source_session": null}
+{"id": "1b54a3ec4d4b", "content": "B", "category": "general", "importance": 1, "tags": ["t2", "t3"], "timestamp": "2026-06-12T19:50:01.225493", "source_session": null}
+{"id": "519d7e59db1e", "content": "Low", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.226073", "source_session": null}
+{"id": "2463122a5d30", "content": "High", "category": "general", "importance": 5, "tags": [], "timestamp": "2026-06-12T19:50:01.226256", "source_session": null}
+{"id": "152fa176588f", "content": "Memory 0", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.226840", "source_session": null}
+{"id": "54f26854d91b", "content": "Memory 1", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.227014", "source_session": null}
+{"id": "96867f9b54d1", "content": "Memory 2", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.227175", "source_session": null}
+{"id": "3727c7d62588", "content": "Memory 3", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.227333", "source_session": null}
+{"id": "499a2d7b42c8", "content": "Memory 4", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.227489", "source_session": null}
+{"id": "6c0b6c7c8fc0", "content": "Memory 5", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.227644", "source_session": null}
+{"id": "7260d0cdeb7e", "content": "Memory 6", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.227817", "source_session": null}
+{"id": "650e2a2af510", "content": "Memory 7", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.227970", "source_session": null}
+{"id": "f28659b88254", "content": "Memory 8", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.228130", "source_session": null}
+{"id": "1b0900b9ed71", "content": "Memory 9", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:01.228280", "source_session": null}
+{"id": "bc5dfd5304e3", "content": "用户喜欢深色主题", "category": "user_preference", "importance": 5, "tags": ["偏好", "UI"], "timestamp": "2026-06-12T19:50:18.295833", "source_session": null}
+{"id": "bd9de4a7d341", "content": "A decision", "category": "decision", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.296564", "source_session": null}
+{"id": "38caa6c4be23", "content": "A preference", "category": "user_preference", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.296750", "source_session": null}
+{"id": "5a44113cdbd3", "content": "Tagged A", "category": "general", "importance": 1, "tags": ["alpha"], "timestamp": "2026-06-12T19:50:18.297360", "source_session": null}
+{"id": "0b27ad31e0de", "content": "Tagged B", "category": "general", "importance": 1, "tags": ["beta"], "timestamp": "2026-06-12T19:50:18.297531", "source_session": null}
+{"id": "63781273222b", "content": "A", "category": "cat1", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.298141", "source_session": null}
+{"id": "cbbb2e9d9264", "content": "B", "category": "cat2", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.298349", "source_session": null}
+{"id": "b75839602481", "content": "A", "category": "general", "importance": 1, "tags": ["t1", "t2"], "timestamp": "2026-06-12T19:50:18.298960", "source_session": null}
+{"id": "4282967d8888", "content": "B", "category": "general", "importance": 1, "tags": ["t2", "t3"], "timestamp": "2026-06-12T19:50:18.299145", "source_session": null}
+{"id": "2c5fce0e1386", "content": "Low", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.299774", "source_session": null}
+{"id": "d50a8e0300e4", "content": "High", "category": "general", "importance": 5, "tags": [], "timestamp": "2026-06-12T19:50:18.299955", "source_session": null}
+{"id": "5b302bebe825", "content": "Memory 0", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.300570", "source_session": null}
+{"id": "f0865ff02f98", "content": "Memory 1", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.300814", "source_session": null}
+{"id": "8906d8a15c61", "content": "Memory 2", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.301033", "source_session": null}
+{"id": "2551e27e65df", "content": "Memory 3", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.301229", "source_session": null}
+{"id": "1a16960d2321", "content": "Memory 4", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.301396", "source_session": null}
+{"id": "48ffff1fa579", "content": "Memory 5", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.301603", "source_session": null}
+{"id": "f1ed3eed8490", "content": "Memory 6", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.301779", "source_session": null}
+{"id": "96286341cc4f", "content": "Memory 7", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.302003", "source_session": null}
+{"id": "18cb01769bdf", "content": "Memory 8", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.302221", "source_session": null}
+{"id": "7cc98bf8fbb7", "content": "Memory 9", "category": "general", "importance": 1, "tags": [], "timestamp": "2026-06-12T19:50:18.302446", "source_session": null}

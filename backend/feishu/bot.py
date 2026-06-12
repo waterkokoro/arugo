@@ -71,7 +71,8 @@ class FeishuBot:
         self._running = False
         self._message_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
         self._worker_task: Optional[asyncio.Task] = None
-        self._message_handler: Optional[Callable[[str, str], Awaitable[str]]] = None
+        # 消息处理器工厂: (sender_id, text, progress_callback) -> reply
+        self._handler_factory: Optional[Callable] = None
 
     # ================================================================
     # 公共接口
@@ -81,9 +82,9 @@ class FeishuBot:
     def is_running(self) -> bool:
         return self._running
 
-    def set_message_handler(self, handler: Callable[[str, str], Awaitable[str]]):
-        """设置消息处理器: async (sender_id, text) -> reply_text"""
-        self._message_handler = handler
+    def set_handler_factory(self, factory):
+        """设置消息处理器工厂: 返回 async (sender_id, text, progress_callback) -> reply_text"""
+        self._handler_factory = factory
 
     async def connect(self):
         """建立 WebSocket + 启动后台 Worker"""
@@ -202,7 +203,7 @@ class FeishuBot:
     # ================================================================
 
     async def _message_worker(self):
-        """后台循环：从队列取消息 → Agent 处理 → REST 回复"""
+        """后台循环：从队列取消息 → Agent 处理（含进度推送）→ REST 回复"""
         logger.info("[FeishuBot] Worker 已启动")
         while self._running:
             try:
@@ -218,8 +219,13 @@ class FeishuBot:
             text = msg.get("text", "")
 
             try:
-                if self._message_handler:
-                    reply = await self._message_handler(sender_id, text)
+                if self._handler_factory:
+                    # 每条消息创建独立的 progress_callback（绑定 message_id）
+                    async def progress_callback(status_text: str):
+                        await self._reply_via_rest(message_id, status_text)
+
+                    handler = self._handler_factory(progress_callback)
+                    reply = await handler(sender_id, text)
                 else:
                     reply = "机器人还未配置消息处理器。"
 

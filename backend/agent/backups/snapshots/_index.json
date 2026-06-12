@@ -53,7 +53,16 @@
       "file_count": 16,
       "total_size": 168776,
       "trigger": "manual"
+    },
+    {
+      "id": "20260612_195732_a5b38d",
+      "name": "Phase5C启动前",
+      "description": "准备添加进度推送 + 飞书命令系统",
+      "created_at": "2026-06-12T19:57:32.803897",
+      "file_count": 16,
+      "total_size": 173680,
+      "trigger": "manual"
     }
   ],
-  "updated_at": "2026-06-12T19:52:18.379381"
+  "updated_at": "2026-06-12T19:57:32.803907"
 }
