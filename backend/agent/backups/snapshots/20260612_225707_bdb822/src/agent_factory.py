@@ -10,15 +10,11 @@ Agent 工厂 - 子Agent生成和管理能力
 6. 每个 Agent 拥有独立持久记忆
 
 这是AI自我扩展为"多智能体系统"的基础设施。
-
-模板现在从 agent.db 的 agent_templates 表加载，
-支持通过 UI 创建/修改/删除自定义模板。
 """
 
 import os
 import json
 import uuid
-import asyncio
 from datetime import datetime
 from typing import Optional
 from pathlib import Path
@@ -30,7 +26,7 @@ os.makedirs(AGENT_DIR, exist_ok=True)
 
 
 # ============================================================
-# 角色模板 — 硬编码 fallback（DB 不可用时使用）
+# 角色模板 — 预定义的专业 Agent 配置
 # ============================================================
 
 ROLE_TEMPLATES = {
@@ -75,7 +71,7 @@ ROLE_TEMPLATES = {
 - 提交代码使用 git_commit_evolution
 - 代码风格遵循 PEP 8 (Python) / ESLint (TS)
 - 不确定的技术决策列出 pros/cons""",
-        "tools": [],
+        "tools": [],  # 空列表 = 全量工具
     },
     "code_reviewer": {
         "name": "代码审查员",
@@ -176,37 +172,6 @@ ROLE_TEMPLATES = {
 }
 
 
-async def _load_templates_from_db() -> dict:
-    """从 agent_templates 表加载模板（异步）"""
-    import aiosqlite
-    global ROLE_TEMPLATES
-    db_path = os.path.join(os.path.dirname(__file__), "..", "agent.db")
-    try:
-        db = await aiosqlite.connect(db_path)
-        db.row_factory = aiosqlite.Row
-        rows = await db.execute_fetchall("SELECT * FROM agent_templates")
-        await db.close()
-        if rows:
-            loaded = {}
-            for row in rows:
-                d = dict(row)
-                try:
-                    tools = json.loads(d.get("tools", "[]"))
-                except Exception:
-                    tools = []
-                loaded[d["id"]] = {
-                    "name": d["name"],
-                    "description": d.get("description", ""),
-                    "system_prompt": d["system_prompt"],
-                    "tools": tools,
-                }
-            if loaded:
-                ROLE_TEMPLATES = loaded
-        return ROLE_TEMPLATES
-    except Exception:
-        return ROLE_TEMPLATES
-
-
 def list_role_templates() -> str:
     """列出所有可用的角色模板"""
     lines = ["[Agent 角色模板]", ""]
@@ -288,15 +253,6 @@ class AgentFactory:
         self._agent_store_path = os.path.join(AGENT_DIR, "registry.json")
         self._agents: dict[str, SubAgent] = {}
         self._load()
-        # 异步加载 DB 模板（fire-and-forget，模板可用后再用）
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(_load_templates_from_db())
-            else:
-                loop.run_until_complete(_load_templates_from_db())
-        except RuntimeError:
-            pass
 
     def _load(self):
         """从磁盘加载已注册的子Agent"""

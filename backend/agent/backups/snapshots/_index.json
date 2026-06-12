@@ -107,7 +107,16 @@
       "file_count": 17,
       "total_size": 195301,
       "trigger": "manual"
+    },
+    {
+      "id": "20260612_225707_bdb822",
+      "name": "Phase5-UI改造前",
+      "description": "准备开始Phase 5: 模板DB化 + 管理REST API + 前端管理页面",
+      "created_at": "2026-06-12T22:57:07.342356",
+      "file_count": 21,
+      "total_size": 332945,
+      "trigger": "manual"
     }
   ],
-  "updated_at": "2026-06-12T22:15:22.968954"
+  "updated_at": "2026-06-12T22:57:07.342374"
 }

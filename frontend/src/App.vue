@@ -6,7 +6,7 @@ import {
   NDialogProvider, NMessageProvider
 } from 'naive-ui'
 import { computed, h } from 'vue'
-import { ChatboxOutline, SettingsOutline } from '@vicons/ionicons5'
+import { ChatboxOutline, SettingsOutline, GridOutline } from '@vicons/ionicons5'
 
 const route = useRoute()
 
@@ -15,6 +15,11 @@ const menuOptions = [
     label: () => h(RouterLink, { to: '/' }, { default: () => '对话' }),
     key: 'chat',
     icon: () => h(NIcon, null, { default: () => h(ChatboxOutline) }),
+  },
+  {
+    label: () => h(RouterLink, { to: '/manage' }, { default: () => '管理' }),
+    key: 'manage',
+    icon: () => h(NIcon, null, { default: () => h(GridOutline) }),
   },
   {
     label: () => h(RouterLink, { to: '/settings' }, { default: () => '设置' }),

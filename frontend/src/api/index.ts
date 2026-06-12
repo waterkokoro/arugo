@@ -167,4 +167,146 @@ export const feishuApi = {
   getStatus: () => api.get<{ enabled: boolean; configured: boolean; connected: boolean; app_id: string }>('/feishu/status'),
 }
 
+// ─────────── 管理 API (Phase 5) ───────────
+
+// Agent 模板
+export interface AgentTemplate {
+  id: string
+  name: string
+  description: string
+  system_prompt: string
+  tools: string[]
+  is_builtin: number
+  created_at: string
+  updated_at: string
+}
+
+export const templatesApi = {
+  list: () => api.get<AgentTemplate[]>('/templates'),
+  get: (id: string) => api.get<AgentTemplate>(`/templates/${id}`),
+  create: (data: AgentTemplate) => api.post<{ status: string }>('/templates', data),
+  update: (id: string, data: Partial<AgentTemplate>) => api.put<{ status: string }>(`/templates/${id}`, data),
+  delete: (id: string) => api.delete(`/templates/${id}`),
+}
+
+// 子Agent
+export interface SubAgentInfo {
+  id: string
+  name: string
+  description: string
+  system_prompt: string
+  tools: string[]
+  role_template: string
+  persistent: boolean
+  created_at: string
+  last_used: string | null
+  use_count: number
+  status: string
+}
+
+export const agentsApi = {
+  list: () => api.get<SubAgentInfo[]>('/agents'),
+  delete: (id: string) => api.delete(`/agents/${id}`),
+}
+
+// 目标
+export interface MilestoneInfo {
+  id: string
+  title: string
+  status: string
+  progress: number
+  completion_criteria: string
+  created_at: string
+  completed_at: string | null
+}
+
+export interface GoalInfo {
+  id: string
+  title: string
+  description: string
+  priority: number
+  status: string
+  deadline: string | null
+  tags: string[]
+  milestones: MilestoneInfo[]
+  created_at: string
+  updated_at: string
+}
+
+export const goalsApi = {
+  list: (status = '') => api.get<GoalInfo[]>('/goals', { params: { status } }),
+  get: (id: string) => api.get<GoalInfo>(`/goals/${id}`),
+  create: (data: Partial<GoalInfo>) => api.post<GoalInfo>('/goals', data),
+  update: (id: string, data: Partial<GoalInfo>) => api.put<GoalInfo>(`/goals/${id}`, data),
+  delete: (id: string) => api.delete(`/goals/${id}`),
+  addMilestone: (goalId: string, data: { title: string; completion_criteria: string }) =>
+    api.post<MilestoneInfo>(`/goals/${goalId}/milestones`, data),
+  updateMilestone: (goalId: string, msId: string, data: Partial<MilestoneInfo>) =>
+    api.put<MilestoneInfo>(`/goals/${goalId}/milestones/${msId}`, data),
+  deleteMilestone: (goalId: string, msId: string) =>
+    api.delete(`/goals/${goalId}/milestones/${msId}`),
+}
+
+// 快照
+export interface SnapshotInfo {
+  id: string
+  name: string
+  description: string
+  created_at: string
+  file_count: number
+  total_size: number
+  trigger: string
+}
+
+export const snapshotsApi = {
+  list: () => api.get<SnapshotInfo[]>('/snapshots'),
+  create: (name: string, description: string) =>
+    api.post<SnapshotInfo>('/snapshots', null, { params: { name, description } }),
+  restore: (id: string) => api.post<{ status: string; message: string }>(`/snapshots/${id}/restore`),
+  delete: (id: string) => api.delete(`/snapshots/${id}`),
+}
+
+// 记忆
+export interface MemoryInfo {
+  id: string
+  content: string
+  category: string
+  importance: number
+  tags: string[]
+  timestamp: string
+  source_session: string | null
+}
+
+export const memoriesApi = {
+  list: (params: { query?: string; category?: string; tags?: string; limit?: number } = {}) =>
+    api.get<MemoryInfo[]>('/memories', { params }),
+  stats: () => api.get('/memories/stats'),
+  categories: () => api.get<{ categories: string[]; tags: string[]; total: number }>('/memories/categories'),
+  delete: (id: string) => api.delete(`/memories/${id}`),
+}
+
+// 进化事件
+export interface EvolutionEvent {
+  timestamp: string
+  type: string
+  description: string
+  metadata?: Record<string, any>
+}
+
+export const evolutionApi = {
+  list: (limit = 50) => api.get<EvolutionEvent[]>('/evolution', { params: { limit } }),
+}
+
+// 全局概览
+export interface Overview {
+  memories: { total: number; categories: number; tags: number }
+  goals: { total: number; active: number; completed: number }
+  agents: { total: number; idle: number }
+  snapshots: { total: number; total_size_kb: number }
+}
+
+export const overviewApi = {
+  get: () => api.get<Overview>('/overview'),
+}
+
 export default api
