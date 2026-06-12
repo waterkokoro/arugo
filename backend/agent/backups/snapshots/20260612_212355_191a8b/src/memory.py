@@ -157,46 +157,11 @@ class MemoryStore:
         with open(self.index_path, "w", encoding="utf-8") as f:
             json.dump(index, f, ensure_ascii=False, indent=2)
 
-    def add(self, entry: MemoryEntry, dedup: bool = True) -> str:
-        """添加记忆条目（增量写入，O(1)磁盘操作）
-
-        Args:
-            entry: 记忆条目
-            dedup: 是否启用去重（默认 True）。重复定义为内容相似度 > 85%
-        """
-        if dedup:
-            dup_id = self._find_duplicate(entry.content)
-            if dup_id:
-                # 更新已有记忆：提升重要性、刷新时间戳
-                existing = self.get_by_id(dup_id)
-                if existing:
-                    existing.importance = min(5, existing.importance + 1)
-                    existing.timestamp = datetime.now().isoformat()
-                    # 合并标签
-                    for tag in entry.tags:
-                        if tag not in existing.tags:
-                            existing.tags.append(tag)
-                    self._save()
-                    return dup_id
-
+    def add(self, entry: MemoryEntry) -> str:
+        """添加记忆条目（增量写入，O(1)磁盘操作）"""
         self.entries.append(entry)
         self._append(entry)  # 高性能：仅追加一行，不重写全文件
         return entry.id
-
-    def _find_duplicate(self, content: str) -> Optional[str]:
-        """查找与给定内容相似度 > 85% 的已有记忆"""
-        from difflib import SequenceMatcher
-        content_lower = content.lower()
-        for entry in self.entries:
-            existing_lower = entry.content.lower()
-            # 快速路径：完全相同
-            if content_lower == existing_lower:
-                return entry.id
-            # 慢速路径：相似度检测（仅对长度相近的做）
-            ratio = SequenceMatcher(None, content_lower, existing_lower).ratio()
-            if ratio > 0.85:
-                return entry.id
-        return None
 
     def search(
         self,
@@ -238,23 +203,6 @@ class MemoryStore:
                 return entry
         return None
 
-    def update(self, entry_id: str, **kwargs) -> bool:
-        """更新记忆条目。支持字段：content, category, importance, tags"""
-        entry = self.get_by_id(entry_id)
-        if not entry:
-            return False
-        if "content" in kwargs:
-            entry.content = kwargs["content"]
-        if "category" in kwargs:
-            entry.category = kwargs["category"]
-        if "importance" in kwargs and 1 <= kwargs["importance"] <= 5:
-            entry.importance = kwargs["importance"]
-        if "tags" in kwargs:
-            entry.tags = kwargs["tags"]
-        entry.timestamp = datetime.now().isoformat()
-        self._save()
-        return True
-
     def delete(self, entry_id: str) -> bool:
         """删除记忆条目"""
         for i, entry in enumerate(self.entries):
@@ -263,29 +211,6 @@ class MemoryStore:
                 self._save()
                 return True
         return False
-
-    def stats(self) -> dict:
-        """返回记忆统计"""
-        if not self.entries:
-            return {"total": 0, "categories": {}, "tags": {}, "avg_importance": 0}
-
-        cats = {}
-        tags = {}
-        imp_sum = 0
-        for e in self.entries:
-            cats[e.category] = cats.get(e.category, 0) + 1
-            for t in e.tags:
-                tags[t] = tags.get(t, 0) + 1
-            imp_sum += e.importance
-
-        return {
-            "total": len(self.entries),
-            "categories": cats,
-            "tags": dict(sorted(tags.items(), key=lambda x: x[1], reverse=True)[:10]),
-            "avg_importance": round(imp_sum / len(self.entries), 2),
-            "oldest": self.entries[0].timestamp[:10] if self.entries else "",
-            "newest": self.entries[-1].timestamp[:10] if self.entries else "",
-        }
 
     def get_all_categories(self) -> list[str]:
         """获取所有类别"""
@@ -430,30 +355,6 @@ class PersistentMemoryManager:
     def search_memory(self, query: str = None, **kwargs) -> list[MemoryEntry]:
         """搜索记忆"""
         return self.store.search(query=query, **kwargs)
-
-    def update_memory(self, entry_id: str, **kwargs) -> bool:
-        """更新记忆条目"""
-        return self.store.update(entry_id, **kwargs)
-
-    def delete_memory(self, entry_id: str) -> bool:
-        """删除记忆条目"""
-        return self.store.delete(entry_id)
-
-    def get_memory(self, entry_id: str) -> Optional[MemoryEntry]:
-        """获取单条记忆详情"""
-        return self.store.get_by_id(entry_id)
-
-    def get_stats(self) -> dict:
-        """获取记忆统计"""
-        return self.store.stats()
-
-    def get_all_categories(self) -> list[str]:
-        """获取所有类别"""
-        return self.store.get_all_categories()
-
-    def get_all_tags(self) -> list[str]:
-        """获取所有标签"""
-        return self.store.get_all_tags()
 
     def remember(self, content: str, importance: int = 3, tags: list = None):
         """快捷记忆方法：记住重要信息（默认重要性=3）"""

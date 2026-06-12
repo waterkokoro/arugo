@@ -91,22 +91,35 @@ def create_message_handler(
 # ================================================================
 
 async def _try_handle_command(text: str) -> Optional[str]:
-    """检测并处理内置命令，返回 None 表示不是命令"""
+    """检测并处理内置命令，返回 None 表示不是命令
+
+    命令格式：
+        /<cmd> [subcmd] [args...]
+        阿尔戈 <cmd> [subcmd] [args...]
+        @阿尔戈 <cmd> [subcmd] [args...]
+    """
     import aiosqlite
     from database import DB_PATH
 
     t = text.strip()
 
     # 命令前缀匹配
-    cmd = None
+    rest = None
     for prefix in ["/", "阿尔戈", "@阿尔戈"]:
         if t.startswith(prefix):
             rest = t[len(prefix):].strip()
-            cmd = rest.lower() if rest else ""
             break
 
-    if cmd is None:
+    if rest is None:
         return None
+
+    if not rest:
+        return _cmd_help()
+
+    # 提取命令（第一个词，小写匹配）和参数（保留原样）
+    parts = rest.split(maxsplit=1)
+    cmd = parts[0].lower()
+    args = parts[1] if len(parts) > 1 else ""
 
     # /status — 进化状态
     if cmd in ("status", "状态", "s"):
@@ -124,9 +137,9 @@ async def _try_handle_command(text: str) -> Optional[str]:
     if cmd in ("diagnose", "诊断", "d", "check", "体检"):
         return await _cmd_diagnose()
 
-    # /memory — 记忆
+    # /memory — 记忆管理（含子命令）
     if cmd in ("memory", "记忆", "m"):
-        return await _cmd_memory()
+        return await _cmd_memory_dispatch(args)
 
     # /help — 帮助
     if cmd in ("help", "帮助", "h", "?"):
@@ -324,31 +337,328 @@ async def _cmd_diagnose() -> str:
     return "\n".join(lines)
 
 
-async def _cmd_memory() -> str:
-    """最近记忆"""
+# ================================================================
+# 记忆管理命令（/memory 子命令系统）
+# ================================================================
+
+async def _cmd_memory_dispatch(args: str) -> str:
+    """/memory 子命令调度
+
+    用法:
+        /memory                  → 最近记忆
+        /memory add <内容>       → 添加记忆（自动提取 #标签 和 importance=N）
+        /memory search <查询>    → 搜索记忆
+        /memory delete <ID>      → 删除记忆
+        /memory detail <ID>      → 查看记忆详情
+        /memory tags             → 标签列表
+        /memory categories       → 类别列表
+        /memory stats            → 统计概览
+        /memory clean            → 清空全部记忆（需二次确认）
+    """
+    if not args:
+        return await _cmd_memory_list()
+
+    parts = args.split(maxsplit=1)
+    subcmd = parts[0].lower()
+    sub_args = parts[1] if len(parts) > 1 else ""
+
     try:
+        if subcmd in ("add", "添加", "记", "a"):
+            return await _cmd_memory_add(sub_args)
+        elif subcmd in ("search", "搜索", "查", "find", "s"):
+            return await _cmd_memory_search(sub_args)
+        elif subcmd in ("delete", "删除", "del", "rm", "d"):
+            return await _cmd_memory_delete(sub_args)
+        elif subcmd in ("detail", "详情", "show", "view", "v"):
+            return await _cmd_memory_detail(sub_args)
+        elif subcmd in ("tags", "标签", "tag"):
+            return await _cmd_memory_tags()
+        elif subcmd in ("categories", "类别", "分类", "cats", "c"):
+            return await _cmd_memory_categories()
+        elif subcmd in ("stats", "统计", "stat"):
+            return await _cmd_memory_stats()
+        elif subcmd in ("clean", "清空", "clear", "wipe"):
+            return await _cmd_memory_clean(sub_args)
+        else:
+            # 未知子命令 → 当作搜索关键词
+            return await _cmd_memory_search(args)
+    except Exception as e:
+        return f"❌ 记忆操作失败：{e}"
+
+
+async def _cmd_memory_list() -> str:
+    """列出最近记忆"""
+    from agent.memory import PersistentMemoryManager
+    mm = PersistentMemoryManager()
+    memories = mm.list_recent(limit=8)
+
+    if not memories:
+        return "🧠 暂无持久记忆。\n\n发送 `/memory add 内容` 开始记录。"
+
+    lines = ["🧠 **持久记忆**（最近 8 条）", ""]
+    for i, m in enumerate(memories, 1):
+        stars = "★" * m.importance
+        tags = f" `#{' #'.join(m.tags)}`" if m.tags else ""
+        info = m.content[:120]
+        lines.append(f"{i}. {stars} `{m.id}` [{m.category}]{tags}")
+        lines.append(f"   {info}")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("`/memory stats` 统计 | `search <词>` 搜索 | `add <内容>` 添加 | `delete <ID>` 删除")
+    return "\n".join(lines)
+
+
+async def _cmd_memory_add(args: str) -> str:
+    """添加持久记忆。格式：/memory add <内容> [#标签] [importance=N]"""
+    import re
+
+    if not args:
+        return (
+            "📝 **添加记忆**\n\n"
+            "格式：`/memory add <内容> [#标签1] [#标签2] [importance=3]`\n\n"
+            "示例：\n"
+            "• `/memory add 用户喜欢深色主题 #偏好 #UI importance=5`\n"
+            "• `/memory add Phase 4 飞书集成已完成 #项目`"
+        )
+
+    # 提取 importance
+    importance = 3
+    imp_match = re.search(r'\bimportance\s*=\s*(\d)\b', args, re.IGNORECASE)
+    if imp_match:
+        importance = max(1, min(5, int(imp_match.group(1))))
+        args = args[:imp_match.start()] + args[imp_match.end():]
+        args = args.strip()
+
+    # 提取 #标签
+    tags = re.findall(r'#(\w+)', args)
+    content = re.sub(r'#\w+', '', args).strip()
+
+    if not content:
+        return "❌ 记忆内容不能为空。用法：`/memory add <内容>`"
+
+    from agent.memory import PersistentMemoryManager
+    mm = PersistentMemoryManager()
+    entry_id = mm.add_memory(content, importance=importance, tags=tags)
+
+    stars = "★" * importance
+    tags_str = f" #{' #'.join(tags)}" if tags else ""
+    return (
+        f"✅ 记忆已保存！\n\n"
+        f"   {stars} `{entry_id}`\n"
+        f"   {content}{tags_str}\n\n"
+        f"`/memory detail {entry_id}` 查看详情 | `/memory search` 搜索"
+    )
+
+
+async def _cmd_memory_search(args: str) -> str:
+    """搜索记忆"""
+    if not args:
+        return "🔍 用法：`/memory search <关键词>`\n\n也支持：`/memory search cat=learned` `tag=偏好` `imp>=4`"
+
+    # 解析高级搜索语法
+    query = args
+    category = None
+    tag_filter = None
+    min_importance = 0
+
+    import re
+    cat_match = re.search(r'\bcat(?:egory)?\s*=\s*(\w+)', query, re.IGNORECASE)
+    if cat_match:
+        category = cat_match.group(1)
+        query = query[:cat_match.start()] + query[cat_match.end():]
+        query = query.strip()
+
+    tag_match = re.search(r'\btag\s*=\s*(\w+)', query, re.IGNORECASE)
+    if tag_match:
+        tag_filter = tag_match.group(1)
+        query = query[:tag_match.start()] + query[tag_match.end():]
+        query = query.strip()
+
+    imp_match = re.search(r'\bimp\s*>=\s*(\d)\b', query, re.IGNORECASE)
+    if imp_match:
+        min_importance = int(imp_match.group(1))
+        query = query[:imp_match.start()] + query[imp_match.end():]
+        query = query.strip()
+
+    from agent.memory import PersistentMemoryManager
+    mm = PersistentMemoryManager()
+
+    results = mm.search_memory(
+        query=query,
+        category=category,
+        tags=[tag_filter] if tag_filter else None,
+        min_importance=min_importance,
+        limit=8,
+    )
+
+    if not results:
+        return f"🔍 未找到匹配「{args}」的记忆。"
+
+    lines = [f"🔍 **记忆搜索：{args}**  （{len(results)} 条）", ""]
+    for i, m in enumerate(results, 1):
+        stars = "★" * m.importance
+        tags = f" `#{' #'.join(m.tags)}`" if m.tags else ""
+        info = m.content[:100]
+        lines.append(f"{i}. {stars} `{m.id}` [{m.category}]{tags}")
+        lines.append(f"   {info}")
+        lines.append("")
+
+    lines.append(f"`/memory detail <ID>` 查看完整内容 | `delete <ID>` 删除")
+    return "\n".join(lines)
+
+
+async def _cmd_memory_delete(args: str) -> str:
+    """删除记忆"""
+    if not args:
+        return "🗑️ 用法：`/memory delete <记忆ID>`\n\n先 `/memory` 查看记忆列表获取 ID。"
+
+    entry_id = args.strip().split()[0]  # 取第一个词作为 ID
+
+    from agent.memory import PersistentMemoryManager
+    mm = PersistentMemoryManager()
+
+    existing = mm.get_memory(entry_id)
+    if not existing:
+        return f"❌ 未找到记忆 `{entry_id}`。用 `/memory` 查看可用 ID。"
+
+    if mm.delete_memory(entry_id):
+        return f"🗑️ 已删除记忆 `{entry_id}`：{existing.content[:80]}..."
+    return "❌ 删除失败"
+
+
+async def _cmd_memory_detail(args: str) -> str:
+    """查看记忆详情"""
+    if not args:
+        return "🔍 用法：`/memory detail <记忆ID>`"
+
+    entry_id = args.strip().split()[0]
+
+    from agent.memory import PersistentMemoryManager
+    mm = PersistentMemoryManager()
+
+    entry = mm.get_memory(entry_id)
+    if not entry:
+        return f"❌ 未找到记忆 `{entry_id}`"
+
+    stars = "★" * entry.importance
+    tags = f" #{' #'.join(entry.tags)}" if entry.tags else ""
+
+    return "\n".join([
+        f"🧠 **记忆详情**",
+        "",
+        f"   ID: `{entry.id}`",
+        f"   重要性: {stars} ({entry.importance}/5)",
+        f"   类别: `{entry.category}`",
+        f"   标签: {tags if tags else '（无）'}",
+        f"   创建时间: {entry.timestamp[:19]}",
+        f"   来源会话: {entry.source_session or '（未知）'}",
+        "",
+        f"   {entry.content}",
+        "",
+        f"`/memory delete {entry.id}` 删除 | `search` 搜索",
+    ])
+
+
+async def _cmd_memory_tags() -> str:
+    """列出所有标签"""
+    from agent.memory import PersistentMemoryManager
+    mm = PersistentMemoryManager()
+    tags = mm.get_all_tags()
+
+    if not tags:
+        return "🏷️ 暂无标签。添加记忆时使用 `#标签名` 创建。"
+
+    stats = mm.get_stats()
+    tag_counts = stats.get("tags", {})
+
+    lines = [f"🏷️ **记忆标签**（共 {len(tags)} 个）", ""]
+    for tag in sorted(tags):
+        count = tag_counts.get(tag, 0)
+        lines.append(f"   `#{tag}` — {count} 条")
+
+    lines.append("")
+    lines.append("`/memory search tag=<标签>` 搜索指定标签")
+    return "\n".join(lines)
+
+
+async def _cmd_memory_categories() -> str:
+    """列出所有类别"""
+    from agent.memory import PersistentMemoryManager
+    mm = PersistentMemoryManager()
+    cats = mm.get_all_categories()
+
+    if not cats:
+        return "📂 暂无类别。"
+
+    stats = mm.get_stats()
+    cat_counts = stats.get("categories", {})
+
+    lines = [f"📂 **记忆类别**（共 {len(cats)} 个）", ""]
+    for cat in sorted(cats):
+        count = cat_counts.get(cat, 0)
+        lines.append(f"   `{cat}` — {count} 条")
+
+    lines.append("")
+    lines.append("`/memory search cat=<类别>` 按类别搜索")
+    return "\n".join(lines)
+
+
+async def _cmd_memory_stats() -> str:
+    """记忆统计"""
+    from agent.memory import PersistentMemoryManager
+    mm = PersistentMemoryManager()
+    s = mm.get_stats()
+
+    if s["total"] == 0:
+        return "🧠 记忆库为空。"
+
+    lines = [
+        "📊 **记忆统计**",
+        "",
+        f"   总数: {s['total']} 条",
+        f"   平均重要性: {s['avg_importance']}/5",
+        f"   最早: {s['oldest']}",
+        f"   最新: {s['newest']}",
+        "",
+    ]
+
+    if s["categories"]:
+        lines.append("📂 **类别分布**")
+        for cat, count in sorted(s["categories"].items(), key=lambda x: x[1], reverse=True):
+            bar = "█" * min(count, 20)
+            lines.append(f"   `{cat}`: {bar} {count}")
+        lines.append("")
+
+    if s["tags"]:
+        lines.append("🏷️ **热门标签**")
+        for tag, count in s["tags"]:
+            lines.append(f"   `#{tag}`: {count} 条")
+        lines.append("")
+
+    lines.append("`/memory` 查看记忆 | `search` 搜索 | `add` 添加")
+    return "\n".join(lines)
+
+
+async def _cmd_memory_clean(args: str = "") -> str:
+    """清空全部记忆（需二次确认）"""
+    if args.strip().lower() in ("confirm", "确认", "yes", "y"):
         from agent.memory import PersistentMemoryManager
         mm = PersistentMemoryManager()
-        memories = mm.list_recent(limit=10)
+        count = mm.count()
+        if count == 0:
+            return "🧠 记忆库已经是空的。"
+        mm.store.clear()
+        return f"🗑️ 已清空全部 {count} 条记忆。"
 
-        if not memories:
-            return "🧠 暂无持久记忆。"
-
-        lines = ["🧠 **最近记忆**", ""]
-        for m in memories:
-            importance = "★" * m.importance
-            tags = ", ".join(m.tags)
-            info = m.content[:100]
-            lines.append(f"{importance} [{m.category}]")
-            lines.append(f"   {info}")
-            if tags:
-                lines.append(f"   🏷 {tags}")
-            lines.append("")
-
-        return "\n".join(lines)
-
-    except Exception as e:
-        return f"获取记忆失败：{e}"
+    from agent.memory import PersistentMemoryManager
+    mm = PersistentMemoryManager()
+    count = mm.count()
+    return (
+        f"⚠️ **清空全部 {count} 条记忆？**\n\n"
+        "此操作不可撤销！发送 `/memory clean confirm` 确认清空。\n\n"
+        "`/memory stats` 查看当前数据量"
+    )
 
 
 def _cmd_help() -> str:
@@ -356,16 +666,24 @@ def _cmd_help() -> str:
     return "\n".join([
         "🤖 **阿尔戈命令**",
         "",
-        "命令需要以 / 开头（如 /status），或在 @阿尔戈 后接命令",
+        "命令以 `/` 开头，或在 `@阿尔戈` 后接命令",
         "",
-        "📊 /status    — 进化状态摘要",
-        "🔧 /tools     — 工具清单",
-        "🎯 /goals     — 目标进度",
-        "🩺 /diagnose  — 自诊断报告",
-        "🧠 /memory    — 最近记忆",
-        "❓ /help      — 本帮助",
+        "📊 `/status`     — 进化状态摘要",
+        "🔧 `/tools`      — 工具清单",
+        "🎯 `/goals`      — 目标进度",
+        "🩺 `/diagnose`   — 自诊断报告",
+        "❓ `/help`       — 本帮助",
         "",
-        "直接发送消息进入 AI 对话模式。",
+        "🧠 **记忆管理**",
+        "`/memory`            — 最近记忆",
+        "`/memory add <内容>`  — 添加（支持 #标签 importance=N）",
+        "`/memory search <词>` — 搜索",
+        "`/memory delete <ID>` — 删除",
+        "`/memory tags`       — 标签列表",
+        "`/memory stats`      — 统计",
+        "`/memory clean`      — 清空",
+        "",
+        "💬 直接发送消息进入 AI 对话。",
     ])
 
 

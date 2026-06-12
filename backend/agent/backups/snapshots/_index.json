@@ -80,7 +80,16 @@
       "file_count": 16,
       "total_size": 182846,
       "trigger": "manual"
+    },
+    {
+      "id": "20260612_212355_191a8b",
+      "name": "Phase5-飞书记忆管理改造前",
+      "description": "准备扩展飞书 /memory 子命令系统 + 优化 memory.py 去重/更新/统计",
+      "created_at": "2026-06-12T21:23:55.847626",
+      "file_count": 16,
+      "total_size": 187085,
+      "trigger": "manual"
     }
   ],
-  "updated_at": "2026-06-12T20:53:01.712563"
+  "updated_at": "2026-06-12T21:23:55.847640"
 }
