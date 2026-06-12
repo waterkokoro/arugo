@@ -89,7 +89,25 @@
       "file_count": 16,
       "total_size": 187085,
       "trigger": "manual"
+    },
+    {
+      "id": "20260612_214946_3eda22",
+      "name": "Phase5D-添加Token余额查询前",
+      "description": "准备在 tools.py 添加 DeepSeek 余额查询工具",
+      "created_at": "2026-06-12T21:49:46.598339",
+      "file_count": 17,
+      "total_size": 192221,
+      "trigger": "manual"
+    },
+    {
+      "id": "20260612_221522_85efbb",
+      "name": "Phase5-飞书群聊记忆前",
+      "description": "准备为飞书添加群聊维度的滑动窗口记忆",
+      "created_at": "2026-06-12T22:15:22.968940",
+      "file_count": 17,
+      "total_size": 195301,
+      "trigger": "manual"
     }
   ],
-  "updated_at": "2026-06-12T21:23:55.847640"
+  "updated_at": "2026-06-12T22:15:22.968954"
 }

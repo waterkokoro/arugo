@@ -11,7 +11,7 @@ class Settings(BaseModel):
     model_name: str = "gpt-3.5-turbo"
     system_prompt: str = "You are a helpful assistant."
     # ── 上下文 ──
-    context_window_size: int = 500  # 消息历史窗口大小
+    context_window_size: int = 50  # 消息历史窗口大小
     context_auto_summarize_threshold: float = 0.8  # 触发自动摘要的窗口占用比例
     # ── Agent 工具安全配置 ──
     workspace_dir: str = ""  # 允许操作的工作目录，空则使用项目根目录

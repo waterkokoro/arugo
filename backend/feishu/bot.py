@@ -174,10 +174,11 @@ class FeishuBot:
                 # 提取 message_id（用于 REST API 回复）
                 message_id = self._extract_message_id(msg)
                 sender_id = self._extract_sender_id(msg)
+                chat_id = self._extract_chat_id(msg)
 
                 logger.info(
                     f"[FeishuBot] 收到: sender={sender_id[:20]}..., "
-                    f"msg={message_id[:10]}..., text={text[:60]}..."
+                    f"msg={message_id[:10]}..., chat={chat_id[:10]}..., text={text[:60]}..."
                 )
 
                 if not message_id:
@@ -189,6 +190,7 @@ class FeishuBot:
                     self._message_queue.put_nowait({
                         "message_id": message_id,
                         "sender_id": sender_id,
+                        "chat_id": chat_id,
                         "text": text,
                     })
                 except asyncio.QueueFull:
@@ -223,6 +225,7 @@ class FeishuBot:
 
             message_id = msg.get("message_id", "")
             sender_id = msg.get("sender_id", "")
+            chat_id = msg.get("chat_id", "")
             text = msg.get("text", "")
 
             try:
@@ -232,7 +235,7 @@ class FeishuBot:
                         await self._reply_via_rest(message_id, status_text)
 
                     handler = self._handler_factory(progress_callback)
-                    reply = await handler(sender_id, text)
+                    reply = await handler(sender_id, text, chat_id)
                 else:
                     reply = "机器人还未配置消息处理器。"
 
@@ -365,6 +368,39 @@ class FeishuBot:
                 return str(sid)
             return str(sender)
         return 'unknown'
+
+    @staticmethod
+    def _extract_chat_id(msg) -> str:
+        """提取群聊/会话 ID（用于按群分组记忆）"""
+        # 尝试: msg.event.message.chat_id
+        event = getattr(msg, 'event', None)
+        if event:
+            message = getattr(event, 'message', None)
+            if message:
+                cid = getattr(message, 'chat_id', None)
+                if cid:
+                    return str(cid)
+
+        # 尝试: msg.chat_id
+        cid = getattr(msg, 'chat_id', None)
+        if cid:
+            return str(cid)
+
+        # 尝试从原始 JSON 提取
+        raw = getattr(msg, '_raw', None) or getattr(msg, 'raw', None)
+        if raw:
+            try:
+                import json
+                obj = json.loads(raw) if isinstance(raw, str) else raw
+                cid = (
+                    (obj.get('event', {}) or {}).get('message', {}) or {}
+                ).get('chat_id', '')
+                if cid:
+                    return str(cid)
+            except Exception:
+                pass
+
+        return ''
 
     @staticmethod
     def _sanitize_for_feishu(text: str) -> str:

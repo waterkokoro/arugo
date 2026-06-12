@@ -3,13 +3,159 @@
 独立模块，供 bot.py 和 routers/feishu.py 共用。
 
 Phase 5C: 增加进度推送 + 内置命令系统
+Phase 5E: 群聊维度滑动窗口记忆（FeishuGroupContext）
 """
 
+import asyncio
 import logging
+from collections import deque
+from datetime import datetime, timedelta
 from typing import Callable, Awaitable, Optional
 
 logger = logging.getLogger("feishu.handler")
 
+
+# ================================================================
+# 群聊滑动窗口记忆
+# ================================================================
+
+class FeishuGroupContext:
+    """按群聊/会话维度的短期滑动窗口记忆。
+
+    每个 chat_id 维护独立的消息队列，Agent 处理消息时
+    自动注入该群最近 N 条对话历史。
+
+    与 Web Chat 的 ContextManager（SQLite 持久化）不同：
+    - 此模块仅维护内存中的短期上下文（不持久化，重启清空）
+    - 设计目的：让同群聊的连续对话保持连贯
+    - 持久记忆仍通过 PersistentMemoryManager 跨会话保留
+    """
+
+    # 默认每群保留的消息条数
+    DEFAULT_MAX_MESSAGES = 30
+    # 超过此时间（分钟）无新消息的群，自动清理上下文
+    TTL_MINUTES = 60
+    # 定时清理间隔
+    CLEANUP_INTERVAL = 300  # 5 分钟
+
+    def __init__(self, max_messages: int = None):
+        self._max_messages = max_messages or self.DEFAULT_MAX_MESSAGES
+        # chat_id → deque of {"role": ..., "content": ..., "time": ...}
+        self._groups: dict[str, deque] = {}
+        self._last_active: dict[str, datetime] = {}
+        self._cleanup_task: Optional[asyncio.Task] = None
+
+    async def start(self):
+        """启动定时清理"""
+        if self._cleanup_task is None:
+            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+    async def stop(self):
+        """停止定时清理"""
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            self._cleanup_task = None
+
+    async def _cleanup_loop(self):
+        """定期清理超时的群聊上下文"""
+        while True:
+            try:
+                await asyncio.sleep(self.CLEANUP_INTERVAL)
+                self._cleanup_expired()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                pass
+
+    def _cleanup_expired(self):
+        """清理超时未活跃的群聊"""
+        now = datetime.now()
+        expired = []
+        for chat_id, last_time in self._last_active.items():
+            if now - last_time > timedelta(minutes=self.TTL_MINUTES):
+                expired.append(chat_id)
+        for chat_id in expired:
+            del self._groups[chat_id]
+            del self._last_active[chat_id]
+            logger.info(f"[GroupCtx] 清理超时群聊: {chat_id[:15]}...")
+
+    def add_message(self, chat_id: str, role: str, content: str):
+        """向指定群聊的上下文添加一条消息"""
+        if not chat_id:
+            return
+        if chat_id not in self._groups:
+            self._groups[chat_id] = deque(maxlen=self._max_messages)
+
+        self._groups[chat_id].append({
+            "role": role,
+            "content": content,
+            "time": datetime.now().isoformat(),
+        })
+        self._last_active[chat_id] = datetime.now()
+
+    def get_context(self, chat_id: str) -> list[dict]:
+        """获取指定群聊的最近消息（不含 system prompt）"""
+        if not chat_id or chat_id not in self._groups:
+            return []
+        return list(self._groups[chat_id])
+
+    def get_context_injection(self, chat_id: str, max_recent: int = 10) -> str:
+        """生成可注入 LLM 上下文的群聊历史摘要。
+
+        Args:
+            chat_id: 群聊 ID
+            max_recent: 最多注入最近的 N 条消息
+
+        Returns:
+            格式化的历史文本，若为空则返回空字符串
+        """
+        if not chat_id or chat_id not in self._groups:
+            return ""
+
+        messages = list(self._groups[chat_id])
+        if not messages:
+            return ""
+
+        # 只取最近 N 条
+        recent = messages[-max_recent:]
+
+        lines = ["**本群最近对话历史：**"]
+        for m in recent:
+            role_name = "用户" if m["role"] == "user" else "阿尔戈"
+            content_preview = m["content"][:300]
+            lines.append(f"- {role_name}: {content_preview}")
+
+        return "\n".join(lines)
+
+    def clear(self, chat_id: str = None):
+        """清空指定群聊上下文（不指定则清空全部）"""
+        if chat_id:
+            self._groups.pop(chat_id, None)
+            self._last_active.pop(chat_id, None)
+        else:
+            self._groups.clear()
+            self._last_active.clear()
+
+    @property
+    def group_count(self) -> int:
+        return len(self._groups)
+
+
+# 全局单例
+_group_context: Optional[FeishuGroupContext] = None
+
+
+def get_group_context() -> FeishuGroupContext:
+    """获取群聊上下文单例"""
+    global _group_context
+    if _group_context is None:
+        _group_context = FeishuGroupContext()
+    return _group_context
+
+
+# ================================================================
+# 消息处理器工厂
+# ================================================================
 
 def create_message_handler(
     progress_callback: Optional[Callable[[str], Awaitable[None]]] = None,
@@ -21,10 +167,15 @@ def create_message_handler(
                           用于在长任务执行期间主动推送阶段信息到飞书
 
     Returns:
-        async function(sender_id: str, text: str) -> str
+        async function(sender_id: str, text: str, chat_id: str) -> str
     """
-    async def handle_feishu_message(sender_id: str, text: str) -> str:
-        """飞书消息 → 命令检测 → Agent → 回复"""
+    # 确保清理循环已启动
+    group_ctx = get_group_context()
+    if group_ctx._cleanup_task is None:
+        asyncio.create_task(group_ctx._cleanup_loop())
+
+    async def handle_feishu_message(sender_id: str, text: str, chat_id: str = "") -> str:
+        """飞书消息 → 命令检测 → Agent → 回复（含群聊上下文注入）"""
         import aiosqlite
         from database import DB_PATH
         from agent.context import ContextManager
@@ -46,12 +197,29 @@ def create_message_handler(
                     row = await cursor.fetchone()
                     system_prompt = row[0] if row else "You are a helpful assistant."
 
-                # 构建上下文（注入持久记忆和目标）
+                # ── Phase 5E: 群聊上下文注入 ──
+                chat_history_text = ""
+                if chat_id:
+                    chat_history_text = group_ctx.get_context_injection(chat_id)
+
+                # 构建上下文
                 context = await context_mgr.build_context(system_prompt)
+
+                # 注入群聊历史（在 system prompt 之后，用户消息之前）
+                if chat_history_text:
+                    context.append({
+                        "role": "system",
+                        "content": chat_history_text,
+                    })
+
                 context.append({
                     "role": "user",
                     "content": f"[来自飞书用户 {sender_id}]\n{text}"
                 })
+
+                # ── 将用户消息存入群聊上下文 ──
+                if chat_id:
+                    group_ctx.add_message(chat_id, "user", text)
 
                 # 获取 LLM 配置
                 async with db.execute("SELECT key, value FROM settings") as cursor:
@@ -76,7 +244,13 @@ def create_message_handler(
                     elif event.type == "error":
                         full_reply += f"\n[错误] {event.content}"
 
-                return full_reply or "收到你的消息了，但没能生成回复 😅"
+                reply = full_reply or "收到你的消息了，但没能生成回复 😅"
+
+                # ── 将助手回复存入群聊上下文 ──
+                if chat_id and reply:
+                    group_ctx.add_message(chat_id, "assistant", reply)
+
+                return reply
 
         except Exception as e:
             import traceback

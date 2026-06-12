@@ -1,0 +1,10 @@
+{
+  "success": false,
+  "passed": 0,
+  "failed": 0,
+  "errors": 0,
+  "duration": 0.02,
+  "output": "/Users/arugo/code/arugo/backend/venv/bin/python: No module named pytest",
+  "timestamp": "2026-06-12T21:25:25.980477",
+  "exit_code": 1
+}

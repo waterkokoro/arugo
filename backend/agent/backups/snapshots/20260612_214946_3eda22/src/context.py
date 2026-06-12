@@ -27,7 +27,7 @@ class ContextManager:
             ("context_window_size",)
         ) as cursor:
             row = await cursor.fetchone()
-            return int(row[0]) if row else 50
+            return int(row[0]) if row else 500
 
     async def get_messages(self, limit: int = None) -> List[Dict[str, str]]:
         """获取历史消息，应用滑动窗口"""
