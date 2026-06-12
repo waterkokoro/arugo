@@ -325,7 +325,7 @@ def create_message_handler(
         from agent.llm_client import LLMClient
 
         # ── 命令检测（不经过 Agent，直接返回）──
-        command_result = await _try_handle_command(text)
+        command_result = await _try_handle_command(text, sender_id)
         if command_result is not None:
             return command_result
 
@@ -464,7 +464,7 @@ def create_message_handler(
 # 命令系统（Phase 5C）
 # ================================================================
 
-async def _try_handle_command(text: str) -> Optional[str]:
+async def _try_handle_command(text: str, sender_id: str = "") -> Optional[str]:
     """检测并处理内置命令，返回 None 表示不是命令
 
     命令格式：
@@ -523,7 +523,9 @@ async def _try_handle_command(text: str) -> Optional[str]:
     if cmd in ("help", "帮助", "h", "?"):
         return _cmd_help()
 
-    return None  # 不是已知命令，交给 Agent 处理
+    # /restart — 重启服务（需授权）
+    if cmd in ("restart", "重启"):
+        return await _cmd_restart(args, sender_id)
 
 
 async def _cmd_status() -> str:
@@ -1116,6 +1118,55 @@ async def _cmd_exec_history(args: str) -> str:
     return "\n".join(lines)
 
 
+async def _cmd_restart(args: str, sender_id: str) -> str:
+    """重启主服务（需授权）
+
+    用法：
+        /restart            → 直接重启
+        /restart confirm    → 确认重启（如需要二次确认）
+    """
+    import aiosqlite
+    import json as _json
+    import os as _os
+    from database import DB_PATH
+
+    # 检查授权
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT value FROM settings WHERE key = ?", ("authorized_users",)
+        ) as cursor:
+            row = await cursor.fetchone()
+            authorized = []
+            if row and row[0]:
+                try:
+                    authorized = _json.loads(row[0])
+                except _json.JSONDecodeError:
+                    pass
+
+    if not sender_id or sender_id not in authorized:
+        return (
+            f"⛔ **无权限**\n\n"
+            f"你的 open_id 不在授权列表中。\n"
+            f"请联系管理员将 `{sender_id}` 添加到授权列表。"
+        )
+
+    # 执行后台重启
+    import subprocess as _sp
+    project_root = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "..", ".."))
+    manage_script = _os.path.join(project_root, "manage.sh")
+
+    try:
+        _sp.Popen(
+            ["bash", "-c", f"sleep 1.5 && cd {project_root} && bash {manage_script} restart"],
+            stdout=_sp.DEVNULL,
+            stderr=_sp.DEVNULL,
+            start_new_session=True,
+        )
+        return "🔄 **正在重启...**\n\n主服务 A (8000) 将在约 2 秒后重启，请稍候。"
+    except Exception as e:
+        return f"❌ 重启失败：{str(e)}"
+
+
 def _cmd_help() -> str:
     """帮助"""
     return "\n".join([
@@ -1129,6 +1180,7 @@ def _cmd_help() -> str:
         "🩺 `/diagnose`   — 自诊断报告",
         "📋 `/exec`       — 查看最近执行记录",
         "   `/exec <N>`   — 查看第 N 条记录的详情",
+        "🔄 `/restart`    — 重启主服务（需授权）",
         "❓ `/help`       — 本帮助",
         "",
         "🧠 **记忆管理**",

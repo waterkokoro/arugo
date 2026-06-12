@@ -57,7 +57,7 @@ async def init_db():
             "system_prompt": "You are a helpful assistant.",
             "context_window_size": "500",
             "workspace_dir": "",
-            "allowed_commands": "ls,cat,head,tail,grep,find,git status,git diff,git log,git add,git commit,python,pip,npm,node,pytest,git init,git remote,git branch,git push,curl",
+            "allowed_commands": "ls,cat,head,tail,grep,find,git status,git diff,git log,git add,git commit,python,pip,npm,node,pytest,git init,git remote,git branch,git push,curl,bash,./manage.sh",
             # 联网搜索默认配置
             "search_provider": "auto",
             "search_api_keys": "{}",
@@ -73,6 +73,8 @@ async def init_db():
             "feishu_text_chunk_size": "1800",
             "feishu_queue_maxsize": "100",
             "quality_gate_auto_snapshot": "true",
+            # 授权用户列表（JSON 数组，存储飞书 open_id）
+            "authorized_users": '["ou_d66e506d5dce03fa45b3479eb5eb89fa"]',
         }
 
         for key, value in defaults.items():
