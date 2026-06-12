@@ -1,0 +1,136 @@
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: '/api',
+  timeout: 30000,
+})
+
+// 设置相关 API
+export interface Settings {
+  api_key: string
+  base_url: string
+  model_name: string
+  system_prompt: string
+  context_window_size: number
+  workspace_dir: string
+  allowed_commands: string
+  search_provider: string
+  search_api_keys: string  // JSON 字符串
+}
+
+export const settingsApi = {
+  get: () => api.get<Settings>('/settings'),
+  update: (settings: Settings) => api.put<Settings>('/settings', settings),
+  verifySearchKey: (provider: string, api_key: string) =>
+    api.post<{ valid: boolean }>('/settings/verify-search-key', { provider, api_key }),
+}
+
+// 消息相关 API
+export interface Message {
+  id?: number
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  created_at?: string
+}
+
+export const messagesApi = {
+  list: (limit = 100, offset = 0) =>
+    api.get<Message[]>('/messages', { params: { limit, offset } }),
+  clear: () => api.delete('/messages'),
+}
+
+// Agent 事件类型
+export interface AgentEvent {
+  type: 'content' | 'thinking' | 'tool_call' | 'tool_result' | 'diff' | 'error' | 'done'
+  content?: string
+  tool?: string
+  tool_args?: Record<string, any>
+  tool_result?: string
+  call_id?: string
+  diff_path?: string
+  diff_old?: string
+  diff_new?: string
+}
+
+// 聊天回调类型
+export interface ChatCallbacks {
+  onContent?: (content: string) => void
+  onEvent?: (event: AgentEvent) => void
+  onDone?: () => void
+  onError?: (error: string) => void
+}
+
+// 聊天 API（SSE 流式）
+export const chatApi = {
+  // 停止当前正在进行的 AI 回复
+  stop: () => api.post('/chat/stop'),
+
+  // 简单模式（向后兼容）
+  stream: (message: string, deepThinking: boolean, onChunk: (content: string) => void, onDone: () => void, signal?: AbortSignal) => {
+    return chatApi.streamAgent(message, 'chat', deepThinking, true, {
+      onContent: onChunk,
+      onDone: onDone,
+    }, signal)
+  },
+
+  // Agent 模式（支持 Tool Calling）
+  streamAgent: (message: string, mode: 'chat' | 'agent', deepThinking: boolean, webSearchEnabled: boolean, callbacks: ChatCallbacks, signal?: AbortSignal) => {
+    const endpoint = mode === 'agent' ? '/chat/agent' : '/chat'
+
+    return fetch(`/api${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, mode, deep_thinking: deepThinking, web_search_enabled: webSearchEnabled }),
+      signal,  // 支持取消
+    }).then(async (response) => {
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('No reader available')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      let doneReceived = false
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event: AgentEvent = JSON.parse(line.slice(6))
+
+              // 分发事件
+              if (event.type === 'content' && event.content) {
+                callbacks.onContent?.(event.content)
+              }
+              if (event.type === 'error' && event.content) {
+                callbacks.onError?.(event.content)
+              }
+              if (event.type === 'done') {
+                doneReceived = true
+                callbacks.onDone?.()
+              }
+
+              // 所有事件都触发 onEvent
+              callbacks.onEvent?.(event)
+            } catch (e) {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+
+      // 流结束但没收到 done 事件（后端异常断开），视为异常终止
+      if (!doneReceived) {
+        callbacks.onError?.('连接意外断开，请重试')
+        callbacks.onDone?.()
+      }
+    })
+  },
+}
+
+export default api
